@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Client Command Center</title>
+  <style>
+    body { font-family: sans-serif; margin: 40px; }
+    label { display: block; margin-top: 10px; }
+    input[type="text"], input[type="password"] { width: 300px; padding: 5px; }
+    button { margin-top: 20px; padding: 10px 20px; }
+  </style>
+</head>
+<body>
+  <h1>Client Command Center</h1>
+  <form action="/send-command" method="post">
+    <label for="client_id">Client ID:</label>
+    <input type="text" name="client_id" id="client_id" required>
+
+    <label for="token">Secret Token:</label>
+    <input type="password" name="token" id="token" required>
+
+    <label for="cmd">Command:</label>
+    <input type="text" name="cmd" id="cmd" required>
+
+    <button type="submit">Send Command</button>
+  </form>
+</body>
+</html>
