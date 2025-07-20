@@ -1,3 +1,3 @@
-# my-next-netlify-app-full
+# Manager Dashboard Netlify
 
-Next.js Webserver with /api/register and /api/list_clients for Netlify.
+Simple Next.js Manager App with API routes and dashboard UI.
