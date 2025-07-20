@@ -1,3 +1,3 @@
-# Manager Dashboard Netlify
+# Netlify Console App
 
-Simple Next.js Manager App with API routes and dashboard UI.
+Next.js project with REST-based live console manager and feedback.
