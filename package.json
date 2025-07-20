@@ -1,5 +1,5 @@
 {
-  "name": "my-next-netlify-app",
+  "name": "my-next-netlify-app-full",
   "version": "1.0.0",
   "scripts": {
     "dev": "next dev",

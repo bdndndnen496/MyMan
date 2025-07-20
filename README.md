@@ -1,3 +1,3 @@
-# My Next.js Netlify App
+# my-next-netlify-app-full
 
-Simple Next.js project ready to deploy on Netlify with API routes.
+Next.js Webserver with /api/register and /api/list_clients for Netlify.
