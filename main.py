@@ -29,7 +29,7 @@ async def list_clients():
     now = time.time()
     result = []
     for client_id in clients:
-        status = "Online" if now - last_seen.get(client_id, 0) < 10 else "Offline"
+        status = "Online" if now - last_seen.get(client_id, 0) < 20 else "Offline"
         info = client_infos.get(client_id, {})
         result.append({
             "id": client_id,
