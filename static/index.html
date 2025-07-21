@@ -48,7 +48,7 @@
           list.innerHTML = "";
           data.clients.forEach(c => {
             const li = document.createElement("li");
-            li.innerHTML = `${c} <button onclick="selectClient('${c}')">Select</button>`;
+            li.innerHTML = `${c} <button onclick="selectClient('${c.split(' ')[0]}')">Select</button>`;
             list.appendChild(li);
           });
         });

@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 import uvicorn
+import asyncio
+import time
 import os
 
 app = FastAPI()
@@ -15,20 +17,43 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-clients = {}
+clients = {}  # client_id → websocket
+user_map = {}  # username → client_id
+last_seen = {}  # client_id → timestamp
 admin_ws = None
 
 @app.get("/clients")
 async def list_clients():
-    return {"clients": list(clients.keys())}
+    now = time.time()
+    result = []
+    for client_id in clients:
+        status = "Online" if now - last_seen.get(client_id, 0) < 10 else "Offline"
+        result.append(f"{client_id} ({status})")
+    return {"clients": result}
 
 @app.websocket("/ws/client/{client_id}")
 async def websocket_client(websocket: WebSocket, client_id: str):
+    username = client_id.split("-")[0]
     await websocket.accept()
+
+    # Schließe alten Client von demselben User:
+    old_id = user_map.get(username)
+    if old_id and old_id != client_id:
+        old_ws = clients.get(old_id)
+        if old_ws:
+            await old_ws.close()
+        clients.pop(old_id, None)
+        last_seen.pop(old_id, None)
+
+    # Registriere neuen Client
     clients[client_id] = websocket
+    user_map[username] = client_id
+    last_seen[client_id] = time.time()
+
     try:
         while True:
             data = await websocket.receive()
+            last_seen[client_id] = time.time()
             if "text" in data:
                 msg = data["text"]
                 if admin_ws:
@@ -38,6 +63,9 @@ async def websocket_client(websocket: WebSocket, client_id: str):
                     await admin_ws.send_bytes(data["bytes"])
     except WebSocketDisconnect:
         clients.pop(client_id, None)
+        last_seen.pop(client_id, None)
+        if user_map.get(username) == client_id:
+            user_map.pop(username, None)
 
 @app.websocket("/ws/admin")
 async def websocket_admin(websocket: WebSocket):
