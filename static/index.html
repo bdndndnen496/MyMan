@@ -23,6 +23,11 @@
   <h2>Screen:</h2>
   <button onclick="startScreen()">Start Screenshare</button>
   <button onclick="stopScreen()">Stop Screenshare</button>
+  <div>
+    Quality: <input type="number" id="quality" value="50" min="1" max="100" />
+    Wait(ms): <input type="number" id="wait" value="30" min="1" max="1000" />
+    <button onclick="updateSettings()">Apply Settings</button>
+  </div>
   <div><img id="screen" /></div>
 
   <h2>Output:</h2>
@@ -88,6 +93,14 @@
     function stopScreen() {
       if (selectedClient && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ target: selectedClient, cmd: "screenshot_stop" }));
+      }
+    }
+
+    function updateSettings() {
+      const quality = parseInt(document.getElementById("quality").value);
+      const wait = parseInt(document.getElementById("wait").value);
+      if (selectedClient && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ target: selectedClient, quality: quality, sleep: wait / 1000 }));
       }
     }
 

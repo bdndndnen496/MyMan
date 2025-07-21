@@ -16,6 +16,7 @@ app.add_middleware(
 )
 
 clients = {}
+client_settings = {}
 admin_ws = None
 
 @app.get("/clients")
@@ -26,6 +27,7 @@ async def list_clients():
 async def websocket_client(websocket: WebSocket, client_id: str):
     await websocket.accept()
     clients[client_id] = websocket
+    client_settings[client_id] = {"quality": 50, "sleep": 0.03}
     try:
         while True:
             data = await websocket.receive()
@@ -38,6 +40,7 @@ async def websocket_client(websocket: WebSocket, client_id: str):
                     await admin_ws.send_bytes(data["bytes"])
     except WebSocketDisconnect:
         clients.pop(client_id, None)
+        client_settings.pop(client_id, None)
 
 @app.websocket("/ws/admin")
 async def websocket_admin(websocket: WebSocket):
@@ -51,6 +54,12 @@ async def websocket_admin(websocket: WebSocket):
             cmd = msg.get("cmd")
             if target in clients:
                 await clients[target].send_text(cmd)
+            if msg.get("quality") is not None:
+                client_settings[target]["quality"] = msg["quality"]
+                await clients[target].send_text(f"set_quality:{msg['quality']}")
+            if msg.get("sleep") is not None:
+                client_settings[target]["sleep"] = msg["sleep"]
+                await clients[target].send_text(f"set_sleep:{msg['sleep']}")
     except WebSocketDisconnect:
         admin_ws = None
 
