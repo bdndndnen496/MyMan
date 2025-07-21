@@ -1,12 +1,15 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 import uvicorn
+import os
 
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # In production, restrict this
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -46,5 +49,14 @@ async def websocket_admin(websocket: WebSocket):
     except WebSocketDisconnect:
         pass
 
+@app.get("/")
+async def serve_index():
+    with open("static/index.html") as f:
+        html_content = f.read()
+    return HTMLResponse(content=html_content, status_code=200)
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=10000)
+    port = int(os.environ.get("PORT", 10000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
