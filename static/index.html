@@ -8,6 +8,7 @@
     body { font-family: sans-serif; padding: 20px; }
     pre { background: #eee; padding: 10px; max-height: 300px; overflow: auto; }
     img { max-width: 100%; border: 1px solid #ccc; }
+    .client-info { font-size: 0.9em; color: #555; }
   </style>
 </head>
 <body>
@@ -16,7 +17,7 @@
   <h2>Clients:</h2>
   <ul id="client-list"></ul>
 
-  <h3 id="client-info"></h3>
+  <div id="client-info"></div>
 
   <h2>Send Command:</h2>
   <input type="text" id="command-input">
@@ -60,14 +61,14 @@
 
     function selectClient(clientId) {
       selectedClient = clientId;
-      const info = clientsData.find(c => c.id === clientId);
-      let infoHtml = "";
-      if (info && info.info) {
-        for (const [key, value] of Object.entries(info.info)) {
-          infoHtml += `${key}: ${value}<br>`;
-        }
+      const infoObj = clientsData.find(c => c.id === clientId);
+      let html = "<h3>Client Info:</h3>";
+      if (infoObj && infoObj.info) {
+        Object.entries(infoObj.info).forEach(([k, v]) => {
+          html += `<div class="client-info">${k}: ${v}</div>`;
+        });
       }
-      document.getElementById("client-info").innerHTML = infoHtml;
+      document.getElementById("client-info").innerHTML = html;
       document.getElementById("output").textContent = "";
       document.getElementById("screen").src = "";
     }

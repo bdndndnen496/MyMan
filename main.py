@@ -43,7 +43,7 @@ async def websocket_client(websocket: WebSocket, client_id: str):
     username = client_id.split("-")[0]
     await websocket.accept()
 
-    # Close old client from same username:
+    # Nur einen Client pro User zulassen
     old_id = user_map.get(username)
     if old_id and old_id != client_id:
         old_ws = clients.get(old_id)
