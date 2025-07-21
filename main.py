@@ -21,19 +21,17 @@ clients = {}
 last_seen = {}
 client_infos = {}
 admin_ws = None
-hostname_map = {}  # hostname -> client_id Zuordnung
+user_map = {}  # username -> client_id Zuordnung
 
 @app.get("/clients")
 async def list_clients():
     now = time.time()
     result = []
     for client_id in clients:
-        info = client_infos.get(client_id, {})
-        hostname = info.get("hostname", client_id)  # fallback: client_id
         status = "Online" if now - last_seen.get(client_id, 0) < 20 else "Offline"
+        info = client_infos.get(client_id, {})
         result.append({
             "id": client_id,
-            "hostname": hostname,
             "status": status,
             "info": info
         })
@@ -41,28 +39,11 @@ async def list_clients():
 
 @app.websocket("/ws/client/{client_id}")
 async def websocket_client(websocket: WebSocket, client_id: str):
+    username = client_id.split("-")[0]  # username = erster Teil vor UUID
     await websocket.accept()
 
-    sysinfo = None
-    while True:
-        try:
-            msg = await websocket.receive()
-            if "text" in msg:
-                try:
-                    data = json.loads(msg["text"])
-                    if data.get("type") == "client_info":
-                        sysinfo = data.get("data", {})
-                        client_infos[client_id] = sysinfo
-                        break
-                except:
-                    pass
-        except:
-            return  # If no client_info at connect → reject silently
-
-    hostname = sysinfo.get("hostname", client_id)
-
-    # Check if hostname already connected → close old session
-    old_id = hostname_map.get(hostname)
+    # Falls ein alter Client für diesen username existiert → Disconnect
+    old_id = user_map.get(username)
     if old_id and old_id != client_id:
         old_ws = clients.get(old_id)
         if old_ws:
@@ -71,8 +52,9 @@ async def websocket_client(websocket: WebSocket, client_id: str):
         last_seen.pop(old_id, None)
         client_infos.pop(old_id, None)
 
+    # Neue Verbindung registrieren
     clients[client_id] = websocket
-    hostname_map[hostname] = client_id
+    user_map[username] = client_id
     last_seen[client_id] = time.time()
 
     try:
@@ -80,9 +62,13 @@ async def websocket_client(websocket: WebSocket, client_id: str):
             data = await websocket.receive()
             last_seen[client_id] = time.time()
             if "text" in data:
-                msg = data["text"]
-                if msg == "ping":
-                    continue
+                try:
+                    msg = json.loads(data["text"])
+                    if msg.get("type") == "client_info":
+                        client_infos[client_id] = msg.get("data", {})
+                        continue
+                except:
+                    msg = data["text"]
                 if admin_ws:
                     await admin_ws.send_text(f"[{client_id}] {msg}")
             elif "bytes" in data:
@@ -92,8 +78,8 @@ async def websocket_client(websocket: WebSocket, client_id: str):
         clients.pop(client_id, None)
         last_seen.pop(client_id, None)
         client_infos.pop(client_id, None)
-        if hostname_map.get(hostname) == client_id:
-            hostname_map.pop(hostname, None)
+        if user_map.get(username) == client_id:
+            user_map.pop(username, None)
 
 @app.websocket("/ws/admin")
 async def websocket_admin(websocket: WebSocket):
