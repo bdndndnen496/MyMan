@@ -16,6 +16,8 @@
   <h2>Clients:</h2>
   <ul id="client-list"></ul>
 
+  <h3 id="client-info"></h3>
+
   <h2>Send Command:</h2>
   <input type="text" id="command-input">
   <button onclick="sendCommand()">Send</button>
@@ -31,6 +33,7 @@
   <script>
     let selectedClient = null;
     let ws = null;
+    let clientsData = [];
 
     function apiBase() {
       return window.location.origin;
@@ -44,11 +47,12 @@
       fetch(apiBase() + "/clients")
         .then(res => res.json())
         .then(data => {
+          clientsData = data.clients;
           const list = document.getElementById("client-list");
           list.innerHTML = "";
           data.clients.forEach(c => {
             const li = document.createElement("li");
-            li.innerHTML = `${c} <button onclick="selectClient('${c.split(' ')[0]}')">Select</button>`;
+            li.innerHTML = `${c.id} (${c.status}) <button onclick="selectClient('${c.id}')">Select</button>`;
             list.appendChild(li);
           });
         });
@@ -56,6 +60,14 @@
 
     function selectClient(clientId) {
       selectedClient = clientId;
+      const info = clientsData.find(c => c.id === clientId);
+      let infoHtml = "";
+      if (info && info.info) {
+        for (const [key, value] of Object.entries(info.info)) {
+          infoHtml += `${key}: ${value}<br>`;
+        }
+      }
+      document.getElementById("client-info").innerHTML = infoHtml;
       document.getElementById("output").textContent = "";
       document.getElementById("screen").src = "";
     }

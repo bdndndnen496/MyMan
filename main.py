@@ -5,6 +5,7 @@ from fastapi.staticfiles import StaticFiles
 import uvicorn
 import asyncio
 import time
+import json
 import os
 
 app = FastAPI()
@@ -17,9 +18,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-clients = {}  # client_id → websocket
-user_map = {}  # username → client_id
-last_seen = {}  # client_id → timestamp
+clients = {}
+user_map = {}
+last_seen = {}
+client_infos = {}
 admin_ws = None
 
 @app.get("/clients")
@@ -28,7 +30,12 @@ async def list_clients():
     result = []
     for client_id in clients:
         status = "Online" if now - last_seen.get(client_id, 0) < 10 else "Offline"
-        result.append(f"{client_id} ({status})")
+        info = client_infos.get(client_id, {})
+        result.append({
+            "id": client_id,
+            "status": status,
+            "info": info
+        })
     return {"clients": result}
 
 @app.websocket("/ws/client/{client_id}")
@@ -36,7 +43,7 @@ async def websocket_client(websocket: WebSocket, client_id: str):
     username = client_id.split("-")[0]
     await websocket.accept()
 
-    # Schließe alten Client von demselben User:
+    # Close old client from same username:
     old_id = user_map.get(username)
     if old_id and old_id != client_id:
         old_ws = clients.get(old_id)
@@ -44,8 +51,8 @@ async def websocket_client(websocket: WebSocket, client_id: str):
             await old_ws.close()
         clients.pop(old_id, None)
         last_seen.pop(old_id, None)
+        client_infos.pop(old_id, None)
 
-    # Registriere neuen Client
     clients[client_id] = websocket
     user_map[username] = client_id
     last_seen[client_id] = time.time()
@@ -55,7 +62,13 @@ async def websocket_client(websocket: WebSocket, client_id: str):
             data = await websocket.receive()
             last_seen[client_id] = time.time()
             if "text" in data:
-                msg = data["text"]
+                try:
+                    msg = json.loads(data["text"])
+                    if msg.get("type") == "client_info":
+                        client_infos[client_id] = msg.get("data", {})
+                        continue
+                except:
+                    msg = data["text"]
                 if admin_ws:
                     await admin_ws.send_text(f"[{client_id}] {msg}")
             elif "bytes" in data:
@@ -64,6 +77,7 @@ async def websocket_client(websocket: WebSocket, client_id: str):
     except WebSocketDisconnect:
         clients.pop(client_id, None)
         last_seen.pop(client_id, None)
+        client_infos.pop(client_id, None)
         if user_map.get(username) == client_id:
             user_map.pop(username, None)
 
