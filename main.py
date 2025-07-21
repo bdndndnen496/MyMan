@@ -25,8 +25,15 @@ admin_ws = None
 @app.get("/clients")
 async def list_clients():
     now = time.time()
+    unique_hosts = {}
+    for client_id, ws in clients.items():
+        info = client_infos.get(client_id, {})
+        hostname = info.get("hostname", "unknown")
+        if hostname not in unique_hosts or last_seen.get(client_id, 0) > last_seen.get(unique_hosts[hostname], 0):
+            unique_hosts[hostname] = client_id
+
     result = []
-    for client_id in clients:
+    for hostname, client_id in unique_hosts.items():
         status = "Online" if now - last_seen.get(client_id, 0) < 20 else "Offline"
         info = client_infos.get(client_id, {})
         result.append({
