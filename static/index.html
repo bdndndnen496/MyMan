@@ -7,7 +7,7 @@
   <style>
     body { font-family: sans-serif; padding: 20px; }
     pre { background: #eee; padding: 10px; max-height: 300px; overflow: auto; }
-    img { max-width: 400px; border: 1px solid #ccc; }
+    img { max-width: 100%; border: 1px solid #ccc; }
   </style>
 </head>
 <body>
@@ -31,7 +31,6 @@
   <script>
     let selectedClient = null;
     let ws = null;
-    let pollingScreen = false;
 
     function apiBase() {
       return window.location.origin;
@@ -64,19 +63,11 @@
     function initWS() {
       ws = new WebSocket(wsBase() + "/ws/admin");
       ws.onmessage = (e) => {
-        if (e.data.startsWith("__screen__")) {
-          const clientId = e.data.replace("__screen__", "");
-          if (clientId === selectedClient) {
-            fetch(apiBase() + "/screen/" + clientId)
-              .then(res => res.json())
-              .then(data => {
-                if (data.screen) {
-                  document.getElementById("screen").src = "data:image/png;base64," + data.screen;
-                }
-              });
-          }
-        } else {
+        if (typeof e.data === "string") {
           document.getElementById("output").textContent += e.data + "\n";
+        } else {
+          const url = URL.createObjectURL(new Blob([e.data]));
+          document.getElementById("screen").src = url;
         }
       };
     }
