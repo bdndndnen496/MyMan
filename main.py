@@ -12,6 +12,7 @@ import psutil
 import json
 import requests
 from PIL import Image, ImageDraw
+import mss
 
 try:
     import GPUtil
