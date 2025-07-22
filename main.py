@@ -22,6 +22,7 @@ clients = {}
 last_seen = {}
 client_infos = {}
 admin_ws = None
+hostname_map = {}  # hostname → client_id
 
 async def ping_clients():
     while True:
@@ -36,6 +37,9 @@ async def ping_clients():
             clients.pop(client_id, None)
             last_seen.pop(client_id, None)
             client_infos.pop(client_id, None)
+            for hostname, mapped_id in list(hostname_map.items()):
+                if mapped_id == client_id:
+                    hostname_map.pop(hostname, None)
         await asyncio.sleep(10)
 
 @app.on_event("startup")
@@ -46,11 +50,12 @@ async def startup_event():
 async def list_clients():
     now = time.time()
     result = []
-    for client_id in clients:
+    for hostname, client_id in hostname_map.items():
         status = "Online" if now - last_seen.get(client_id, 0) < 20 else "Offline"
         info = client_infos.get(client_id, {})
         result.append({
             "id": client_id,
+            "hostname": hostname,
             "status": status,
             "info": info
         })
@@ -59,7 +64,38 @@ async def list_clients():
 @app.websocket("/ws/client/{client_id}")
 async def websocket_client(websocket: WebSocket, client_id: str):
     await websocket.accept()
+
+    # Warte bis wir client_info haben für hostname
+    sysinfo = None
+    while True:
+        try:
+            msg = await websocket.receive()
+            if "text" in msg:
+                try:
+                    data = json.loads(msg["text"])
+                    if data.get("type") == "client_info":
+                        sysinfo = data.get("data", {})
+                        client_infos[client_id] = sysinfo
+                        break
+                except:
+                    pass
+        except:
+            return  # Falls kein client_info kommt → abbrechen
+
+    hostname = sysinfo.get("hostname", client_id)
+
+    # Check: existiert schon Client für hostname → alte Verbindung schließen
+    old_id = hostname_map.get(hostname)
+    if old_id and old_id != client_id:
+        old_ws = clients.get(old_id)
+        if old_ws:
+            await old_ws.close()
+        clients.pop(old_id, None)
+        last_seen.pop(old_id, None)
+        client_infos.pop(old_id, None)
+
     clients[client_id] = websocket
+    hostname_map[hostname] = client_id
     last_seen[client_id] = time.time()
 
     try:
@@ -67,15 +103,16 @@ async def websocket_client(websocket: WebSocket, client_id: str):
             data = await websocket.receive()
             last_seen[client_id] = time.time()
             if "text" in data:
-                try:
-                    msg = json.loads(data["text"])
-                    if msg.get("type") == "client_info":
-                        client_infos[client_id] = msg.get("data", {})
-                        continue
-                except:
-                    msg = data["text"]
+                msg = data["text"]
                 if msg == "pong":
                     continue
+                try:
+                    obj = json.loads(msg)
+                    if obj.get("type") == "client_info":
+                        client_infos[client_id] = obj.get("data", {})
+                        continue
+                except:
+                    pass
                 if admin_ws:
                     await admin_ws.send_text(f"[{client_id}] {msg}")
             elif "bytes" in data:
@@ -85,6 +122,8 @@ async def websocket_client(websocket: WebSocket, client_id: str):
         clients.pop(client_id, None)
         last_seen.pop(client_id, None)
         client_infos.pop(client_id, None)
+        if hostname_map.get(hostname) == client_id:
+            hostname_map.pop(hostname, None)
 
 @app.websocket("/ws/admin")
 async def websocket_admin(websocket: WebSocket):
