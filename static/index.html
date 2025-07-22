@@ -700,12 +700,77 @@
                     img.src = url;
                     img.style.display = 'block';
                 } else {
-                    // Text message
-                    const terminalOutput = document.getElementById('terminalOutput');
-                    if (terminalOutput) {
-                        const now = new Date().toLocaleTimeString();
-                        terminalOutput.innerHTML += `<div style="color: #00ff00;">[${now}] ${event.data}</div>`;
-                        terminalOutput.scrollTop = terminalOutput.scrollHeight;
+                    try {
+                        // Try to parse as JSON first
+                        const data = JSON.parse(event.data);
+                        
+                        if (data.type === 'client_update') {
+                            // Handle client info update
+                            const clientId = data.client_id;
+                            const clientData = data.data;
+                            
+                            // Update client info in memory
+                            if (clients[clientId]) {
+                                clients[clientId].info = clientData;
+                                clients[clientId].status = 'Online';
+                            } else {
+                                // Create new client entry if it doesn't exist
+                                clients[clientId] = {
+                                    id: clientId,
+                                    hostname: clientData.hostname,
+                                    status: 'Online',
+                                    info: clientData
+                                };
+                            }
+                            
+                            // Update UI if this is the currently selected client
+                            if (currentClient === clientId) {
+                                updateClientInfo(clientId);
+                            }
+                            
+                            // Update client list display
+                            updateClientInList(clientId, clientData);
+                            
+                            return; // Don't process as terminal output
+                        } else if (data.type === 'init') {
+                            // Initial client list from server
+                            const serverClients = data.clients || {};
+                            for (const [clientId, clientInfo] of Object.entries(serverClients)) {
+                                clients[clientId] = {
+                                    id: clientId,
+                                    hostname: clientInfo.info.hostname || clientId,
+                                    status: (Date.now() / 1000) - clientInfo.last_seen < 20 ? 'Online' : 'Offline',
+                                    info: clientInfo.info
+                                };
+                            }
+                            loadClients(); // Refresh display
+                            return;
+                        }
+                    } catch (jsonError) {
+                        // Not JSON, process as regular terminal output
+                    }
+                    
+                    // Regular terminal output
+                    const message = event.data;
+                    if (message !== 'pong') {
+                        const terminalOutput = document.getElementById('terminalOutput');
+                        if (terminalOutput) {
+                            const now = new Date().toLocaleTimeString();
+                            
+                            // Clean up the message - remove client ID prefix if present
+                            let cleanMessage = message;
+                            if (message.startsWith('[') && message.includes(']')) {
+                                const endBracket = message.indexOf(']');
+                                if (endBracket !== -1 && endBracket < 50) { // Reasonable limit for client ID
+                                    cleanMessage = message.substring(endBracket + 1).trim();
+                                }
+                            }
+                            
+                            if (cleanMessage && cleanMessage !== 'pong') {
+                                terminalOutput.innerHTML += `<div style="color: #00ff00;">[${now}] ${cleanMessage}</div>`;
+                                terminalOutput.scrollTop = terminalOutput.scrollHeight;
+                            }
+                        }
                     }
                 }
             };
@@ -718,6 +783,31 @@
             ws.onerror = function(error) {
                 console.error('WebSocket error:', error);
             };
+        }
+
+        // Update specific client in the list without full refresh
+        function updateClientInList(clientId, clientData) {
+            const clientItems = document.querySelectorAll('.client-item');
+            clientItems.forEach(item => {
+                const onclick = item.getAttribute('onclick');
+                if (onclick && onclick.includes(`'${clientId}'`)) {
+                    // Update the client item content
+                    const infoDiv = item.querySelector('.client-info');
+                    if (infoDiv) {
+                        const nameDiv = infoDiv.querySelector('.client-name');
+                        const detailsDiv = infoDiv.querySelector('.client-details');
+                        
+                        if (nameDiv) nameDiv.textContent = clientData.hostname;
+                        if (detailsDiv) detailsDiv.textContent = `${clientData.username || 'Unknown'} • ${clientData.os || 'Unknown OS'}`;
+                    }
+                    
+                    const statusBadge = item.querySelector('.status-badge');
+                    if (statusBadge) {
+                        statusBadge.textContent = 'Online';
+                        statusBadge.className = 'status-badge status-online';
+                    }
+                }
+            });
         }
 
         // Load clients from server
