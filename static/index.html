@@ -2,86 +2,106 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Client-Management</title>
-  <style>
-    body { font-family: sans-serif; margin: 20px; }
-    h1, h2 { margin-top: 20px; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
-    th { background: #f0f0f0; }
-    button { padding: 4px 8px; margin: 2px; }
-    .backlog { background: #ffeeee; }
-
-    /* Detail‑Ansicht */
-    #detail { display: none; }
-    .specs p { margin: 4px 0; }
-    #console { background: #111; color: #0f0; padding: 10px; height: 200px; overflow: auto; }
-    #cmd { width: 70%; padding: 6px; }
-    #send { padding: 6px 12px; }
-
-    /* Modal für Taskmanager */
-    .overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); }
-    .modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-      background: #fff; padding: 20px; border-radius: 6px; max-width: 600px; width: 90%; max-height: 80vh; overflow: auto; }
-    .tabs { display: flex; border-bottom: 1px solid #ccc; margin-bottom: 10px; }
-    .tab { padding: 8px 16px; cursor: pointer; }
-    .tab.active { border-bottom: 2px solid #333; font-weight: bold; }
-    .tab-content { display: none; }
-    .tab-content.active { display: block; }
-  </style>
+  <title>Client-Management Dashboard</title>
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
+<body class="bg-gray-100 text-gray-800">
 
-  <!-- Übersicht -->
-  <div id="overview">
-    <h1>Client-Management</h1>
+  <!-- Container -->
+  <div id="overview" class="container mx-auto p-6">
 
-    <h2>📥 Backlog (mehr als 2 Min offline)</h2>
-    <table id="tbl-backlog">
-      <thead><tr><th>Public IP</th><th>Username</th><th>Status</th><th>Letzter Kontakt</th><th>Connect</th></tr></thead>
-      <tbody></tbody>
-    </table>
+    <!-- Header -->
+    <header class="mb-6">
+      <h1 class="text-3xl font-bold">Client-Management</h1>
+      <p class="text-gray-600 mt-1">Übersicht aller verbundenen Clients</p>
+    </header>
 
-    <div id="groups"></div>
+    <!-- Backlog Section -->
+    <section class="mb-8">
+      <h2 class="text-2xl font-semibold mb-4">📥 Backlog (mehr als 2 Min offline)</h2>
+      <div class="overflow-x-auto">
+        <table id="tbl-backlog" class="min-w-full bg-white shadow rounded-lg overflow-hidden">
+          <thead class="bg-gray-200">
+            <tr>
+              <th class="px-4 py-2 text-left">Public IP</th>
+              <th class="px-4 py-2 text-left">Username</th>
+              <th class="px-4 py-2 text-left">Status</th>
+              <th class="px-4 py-2 text-left">Letzter Kontakt</th>
+              <th class="px-4 py-2 text-left">Connect</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y">
+            <!-- Dynamisch gefüllt -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Groups by Network -->
+    <section id="groups" class="space-y-8">
+      <!-- Dynamisch gefüllt -->
+    </section>
+
   </div>
 
-  <!-- Detail-Ansicht -->
-  <div id="detail">
-    <button onclick="goHome()">← Zurück zur Übersicht</button>
-    <h1>Client: <span id="cid"></span></h1>
-    <div class="specs">
-      <h2>Specs &amp; Info</h2>
-      <p><strong>Public IP:</strong> <span id="sp-public"></span></p>
-      <p><strong>Private IP:</strong> <span id="sp-private"></span></p>
-      <p><strong>OS:</strong> <span id="sp-os"></span></p>
-      <p><strong>CPU:</strong> <span id="sp-cpu"></span></p>
-      <p><strong>RAM:</strong> <span id="sp-ram"></span></p>
-      <p><strong>Disk:</strong> <span id="sp-disk"></span></p>
-      <p><strong>Netzwerk:</strong> <span id="sp-net"></span></p>
+  <!-- Detail View -->
+  <div id="detail" class="container mx-auto p-6 hidden">
+    <button onclick="goHome()" class="mb-4 inline-flex items-center px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded">
+      ← Zurück zur Übersicht
+    </button>
+    <header class="mb-6">
+      <h1 class="text-3xl font-bold">Client: <span id="cid"></span></h1>
+    </header>
+
+    <div class="bg-white shadow rounded-lg p-6 mb-8">
+      <h2 class="text-2xl font-semibold mb-4">Specs &amp; Info</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <p><strong>Public IP:</strong> <span id="sp-public"></span></p>
+        <p><strong>Private IP:</strong> <span id="sp-private"></span></p>
+        <p><strong>OS:</strong> <span id="sp-os"></span></p>
+        <p><strong>CPU:</strong> <span id="sp-cpu"></span></p>
+        <p><strong>RAM:</strong> <span id="sp-ram"></span></p>
+        <p><strong>Disk:</strong> <span id="sp-disk"></span></p>
+        <p><strong>Netzwerk:</strong> <span id="sp-net"></span></p>
+      </div>
     </div>
 
-    <h2>Remote Konsole</h2>
-    <div id="console"></div>
-    <input id="cmd" placeholder="Befehl eingeben…" />
-    <button id="send">Senden</button>
-    <button id="tm-btn">Taskmanager</button>
+    <div class="bg-white shadow rounded-lg p-6 mb-8">
+      <h2 class="text-2xl font-semibold mb-4">Remote Konsole</h2>
+      <div id="console" class="h-48 overflow-auto bg-black text-green-400 p-4 rounded mb-4"></div>
+      <div class="flex space-x-2">
+        <input id="cmd" type="text" placeholder="Befehl eingeben…"
+               class="flex-1 border border-gray-300 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400" />
+        <button id="send"
+                class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded">Senden</button>
+        <button id="tm-btn"
+                class="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded">Taskmanager</button>
+      </div>
+    </div>
+  </div>
 
-    <div class="overlay" id="overlay"></div>
-    <div class="modal" id="tm-modal">
-      <h3>Live Taskmanager</h3>
-      <div class="tabs">
-        <div class="tab active" data-cmd="tasklist">Prozesse</div>
-        <div class="tab" data-cmd="wmic cpu get loadpercentage">CPU</div>
-        <div class="tab" data-cmd="wmic OS get FreePhysicalMemory,TotalVisibleMemorySize">Memory</div>
-        <div class="tab" data-cmd="wmic logicaldisk get size,freespace">Disk</div>
+  <!-- Modal Overlay -->
+  <div id="overlay" class="fixed inset-0 bg-black bg-opacity-50 hidden"></div>
+
+  <!-- Taskmanager Modal -->
+  <div id="tm-modal" class="fixed inset-0 flex items-center justify-center hidden">
+    <div class="bg-white rounded-lg shadow-lg w-full max-w-3xl mx-4 p-6 relative">
+      <button id="tm-close"
+              class="absolute top-4 right-4 text-gray-500 hover:text-gray-700">&times;</button>
+      <h3 class="text-2xl font-semibold mb-4">Live Taskmanager</h3>
+      <div class="tabs flex border-b mb-4">
+        <div class="tab px-4 py-2 cursor-pointer active" data-cmd="tasklist">Prozesse</div>
+        <div class="tab px-4 py-2 cursor-pointer" data-cmd="wmic cpu get loadpercentage">CPU</div>
+        <div class="tab px-4 py-2 cursor-pointer" data-cmd="wmic OS get FreePhysicalMemory,TotalVisibleMemorySize">Memory</div>
+        <div class="tab px-4 py-2 cursor-pointer" data-cmd="wmic logicaldisk get size,freespace">Disk</div>
       </div>
-      <div id="tm-contents">
-        <div class="tab-content active" id="content-0"></div>
-        <div class="tab-content" id="content-1"></div>
-        <div class="tab-content" id="content-2"></div>
-        <div class="tab-content" id="content-3"></div>
+      <div id="tm-contents" class="space-y-4">
+        <div class="tab-content active max-h-64 overflow-auto bg-gray-100 p-4 rounded" id="content-0"></div>
+        <div class="tab-content max-h-64 overflow-auto bg-gray-100 p-4 rounded" id="content-1"></div>
+        <div class="tab-content max-h-64 overflow-auto bg-gray-100 p-4 rounded" id="content-2"></div>
+        <div class="tab-content max-h-64 overflow-auto bg-gray-100 p-4 rounded" id="content-3"></div>
       </div>
-      <button id="tm-close">Schließen</button>
     </div>
   </div>
 
@@ -91,141 +111,191 @@
 
     // Überblick laden
     async function fetchClients(){
-      const res = await fetch(ENDPOINT);
-      const { online, offline, backlog } = await res.json();
-      renderOverview(online, offline, backlog);
+      try {
+        const res = await fetch(ENDPOINT);
+        const { online, offline, backlog } = await res.json();
+        renderOverview(online, offline, backlog);
+      } catch (e) {
+        console.error("Fehler beim Laden der Client-Daten:", e);
+      }
     }
+
     function renderOverview(online, offline, backlog){
-      // Backlog
+      // Backlog Tabelle füllen
       const tb = document.querySelector("#tbl-backlog tbody");
       tb.innerHTML = "";
       backlog.forEach(c => {
-        tb.innerHTML += `
-          <tr class="backlog">
-            <td>${c.public_ip}</td>
-            <td>${c.username}</td>
-            <td>${c.status}</td>
-            <td>${new Date(c.last_seen*1000).toLocaleTimeString()}</td>
-            <td><button onclick="showDetail('${c.id}')">Connect</button></td>
-          </tr>`;
+        const last = new Date(c.last_seen*1000).toLocaleTimeString();
+        const row = document.createElement("tr");
+        row.className = "divide-x";
+
+        row.innerHTML = `
+          <td class="px-4 py-2">${c.public_ip}</td>
+          <td class="px-4 py-2">${c.username}</td>
+          <td class="px-4 py-2 text-red-600 font-semibold">${c.status}</td>
+          <td class="px-4 py-2">${last}</td>
+          <td class="px-4 py-2">
+            <button onclick="showDetail('${c.id}')"
+                    class="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded">
+              Connect
+            </button>
+          </td>`;
+        tb.appendChild(row);
       });
+
       // Gruppen nach Netzwerk
       const all = [...online, ...offline];
       const byNet = {};
       all.forEach(c => {
-        byNet[c.network] = byNet[c.network]||[];
+        if (!byNet[c.network]) byNet[c.network] = [];
         byNet[c.network].push(c);
       });
       const cont = document.getElementById("groups");
       cont.innerHTML = "";
-      for(const net in byNet){
-        cont.innerHTML += `<h2>Netzwerk ${net}</h2>
-          <table>
-            <thead><tr><th>Public IP</th><th>Username</th><th>Status</th><th>Connect</th></tr></thead>
-            <tbody>
-              ${byNet[net].map(c=>`
+
+      for (const [network, clients] of Object.entries(byNet)) {
+        const section = document.createElement("section");
+        section.className = "mb-8";
+        section.innerHTML = `
+          <h2 class="text-2xl font-semibold mb-4">Netzwerk: ${network}</h2>
+          <div class="overflow-x-auto">
+            <table class="min-w-full bg-white shadow rounded-lg overflow-hidden">
+              <thead class="bg-gray-200">
                 <tr>
-                  <td>${c.public_ip}</td>
-                  <td>${c.username}</td>
-                  <td>${c.status}</td>
-                  <td><button onclick="showDetail('${c.id}')">Connect</button></td>
-                </tr>`).join("")}
-            </tbody>
-          </table>`;
+                  <th class="px-4 py-2">Public IP</th>
+                  <th class="px-4 py-2">Username</th>
+                  <th class="px-4 py-2">Status</th>
+                  <th class="px-4 py-2">Connect</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y">
+                ${clients.map(c => {
+                  const statusColor = c.status==="Online"?"text-green-600":"text-gray-600";
+                  return `
+                  <tr>
+                    <td class="px-4 py-2">${c.public_ip}</td>
+                    <td class="px-4 py-2">${c.username}</td>
+                    <td class="px-4 py-2 ${statusColor} font-semibold">${c.status}</td>
+                    <td class="px-4 py-2">
+                      <button onclick="showDetail('${c.id}')"
+                              class="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded">
+                        Connect
+                      </button>
+                    </td>
+                  </tr>`}).join("")}
+              </tbody>
+            </table>
+          </div>`;
+
+        cont.appendChild(section);
       }
     }
 
-    // Detail‑Ansicht aufbauen
-    async function loadSpecs(cid){
-      const res = await fetch(ENDPOINT);
-      const { online, offline, backlog } = await res.json();
-      const all = [...online, ...offline, ...backlog];
-      const c = all.find(x=>x.id===cid);
-      if(!c) return;
-      document.getElementById("sp-public").textContent = c.public_ip;
-      document.getElementById("sp-private").textContent = c.private_ip;
-      // Zusatzinfos aus client_infos
-      const info = c.info||{};
-      document.getElementById("sp-os").textContent = info.os||"";
-      document.getElementById("sp-cpu").textContent = info.cpu_percent||"";
-      document.getElementById("sp-ram").textContent = `${info.ram_used||""}/${info.ram_total||""}`;
-      document.getElementById("sp-disk").textContent = `${info.disk_used||""}/${info.disk_total||""}`;
-      document.getElementById("sp-net").textContent = c.network;
-    }
-
-    // WebSocket für Admin‑Befehle
-    function setupWS(){
-      adminWs = new WebSocket((location.protocol==="https:"?"wss":"ws")+`://${location.host}/ws/admin`);
-      adminWs.onmessage = ev => {
-        const text = ev.data + "\n";
-        document.getElementById("console").textContent += text;
-        document.querySelectorAll(".tab").forEach((t,i)=>{
-          if(t.classList.contains("active")){
-            document.getElementById(`content-${i}`).textContent += text;
-          }
-        });
-      };
-    }
-
-    // Ansicht wechseln
+    // Detail-Ansicht wechseln
     function showDetail(id){
       location.hash = id;
     }
     function goHome(){
       location.hash = "";
     }
+
     window.onhashchange = () => {
       const cid = location.hash.slice(1);
-      if(cid){
-        // Detail
-        document.getElementById("overview").style.display = "none";
-        document.getElementById("detail").style.display = "block";
-        document.getElementById("cid").textContent = cid;
-        document.getElementById("console").textContent = "";
-        setupWS();
-        loadSpecs(cid);
+      const overviewEl = document.getElementById("overview");
+      const detailEl   = document.getElementById("detail");
+      if (cid) {
+        overviewEl.classList.add("hidden");
+        detailEl.classList.remove("hidden");
+        initDetail(cid);
       } else {
-        // Übersicht
-        document.getElementById("detail").style.display = "none";
-        document.getElementById("overview").style.display = "block";
-        if(adminWs) adminWs.close();
+        detailEl.classList.add("hidden");
+        overviewEl.classList.remove("hidden");
+        if (adminWs) adminWs.close();
       }
     };
 
-    // Remote Konsole
-    document.getElementById("send").onclick = ()=>{
-      const cmd = document.getElementById("cmd").value;
+    async function initDetail(cid){
+      document.getElementById("cid").textContent = cid;
+      document.getElementById("console").textContent = "";
+      setupWS(cid);
+      await loadSpecs(cid);
+    }
+
+    // Spezifikationen laden
+    async function loadSpecs(cid){
+      try {
+        const res = await fetch(ENDPOINT);
+        const { online, offline, backlog } = await res.json();
+        const all = [...online, ...offline, ...backlog];
+        const c = all.find(x => x.id === cid);
+        if (!c) return;
+        const info = c.info || {};
+        document.getElementById("sp-public").textContent  = c.public_ip;
+        document.getElementById("sp-private").textContent = c.private_ip;
+        document.getElementById("sp-os").textContent      = info.os || "";
+        document.getElementById("sp-cpu").textContent     = info.cpu_percent || "";
+        document.getElementById("sp-ram").textContent     = `${info.ram_used||""}/${info.ram_total||""}`;
+        document.getElementById("sp-disk").textContent    = `${info.disk_used||""}/${info.disk_total||""}`;
+        document.getElementById("sp-net").textContent     = c.network;
+      } catch (e) {
+        console.error("Fehler beim Laden der Specs:", e);
+      }
+    }
+
+    // WebSocket einrichten
+    function setupWS(cid){
+      adminWs = new WebSocket((location.protocol==="https:"?"wss":"ws")+`://${location.host}/ws/admin`);
+      adminWs.onopen = () => console.log("Admin WS verbunden");
+      adminWs.onmessage = ev => {
+        const text = ev.data + "\n";
+        document.getElementById("console").textContent += text;
+        document.querySelectorAll(".tab").forEach((tab,i)=>{
+          if (tab.classList.contains("active")) {
+            document.getElementById(`content-${i}`).textContent += text;
+          }
+        });
+      };
+      adminWs.onclose = () => console.log("Admin WS getrennt");
+    }
+
+    // Konsole: Befehl senden
+    document.getElementById("send").onclick = () => {
+      const cmd = document.getElementById("cmd").value.trim();
       const cid = location.hash.slice(1);
-      adminWs.send(JSON.stringify({ target: cid, cmd }));
-      document.getElementById("cmd").value = "";
+      if (cmd && adminWs) {
+        adminWs.send(JSON.stringify({ target: cid, cmd }));
+        document.getElementById("cmd").value = "";
+      }
     };
 
-    // Taskmanager‑Popup
-    document.getElementById("tm-btn").onclick = ()=>{
-      document.getElementById("overlay").style.display = "block";
-      document.getElementById("tm-modal").style.display = "block";
+    // Taskmanager Modal
+    document.getElementById("tm-btn").onclick = () => {
+      document.getElementById("overlay").classList.remove("hidden");
+      document.getElementById("tm-modal").classList.remove("hidden");
       document.querySelector(".tab.active").click();
     };
-    document.getElementById("tm-close").onclick = ()=>{
-      document.getElementById("overlay").style.display = "none";
-      document.getElementById("tm-modal").style.display = "none";
+    document.getElementById("tm-close").onclick = () => {
+      document.getElementById("overlay").classList.add("hidden");
+      document.getElementById("tm-modal").classList.add("hidden");
     };
-    document.querySelectorAll(".tab").forEach((tab,i)=>{
-      tab.onclick = ()=>{
-        document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
-        document.querySelectorAll(".tab-content").forEach(c=>c.classList.remove("active"));
-        tab.classList.add("active");
-        document.getElementById(`content-${i}`).classList.add("active");
-        document.getElementById(`content-${i}`).textContent = "";
+    document.querySelectorAll(".tab").forEach((tab,i) => {
+      tab.onclick = () => {
+        document.querySelectorAll(".tab").forEach(t => t.classList.remove("active", "text-blue-600"));
+        document.querySelectorAll(".tab-content").forEach(c => c.classList.add("hidden"));
+        tab.classList.add("active", "text-blue-600");
+        const contentEl = document.getElementById(`content-${i}`);
+        contentEl.classList.remove("hidden");
+        contentEl.textContent = "";
         const cid = location.hash.slice(1);
-        adminWs.send(JSON.stringify({ target: cid, cmd: tab.dataset.cmd }));
+        if (adminWs) adminWs.send(JSON.stringify({ target: cid, cmd: tab.dataset.cmd }));
       };
     });
 
-    // Init
+    // Init Übersicht
     fetchClients();
     setInterval(fetchClients, 30000);
     window.onhashchange();  // initial
+
   </script>
 </body>
 </html>
