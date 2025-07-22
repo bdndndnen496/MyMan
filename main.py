@@ -30,10 +30,10 @@ admin_ws = None
 
 async def ping_clients():
     while True:
+        now = time.time()
         for cid, ws in list(clients.items()):
-            try:
-                await ws.send_text("ping")
-            except:
+            if now - last_seen.get(cid, 0) > 30:
+                logging.info(f"Client timeout detected: {cid}")
                 remove_client(cid)
         await asyncio.sleep(10)
 
@@ -59,33 +59,6 @@ async def get_clients():
             "info": info
         })
     return networks
-
-@app.get("/api/client/{client_id}/info")
-async def get_client_info(client_id: str):
-    return {
-        "client_id": client_id,
-        "info": client_infos.get(client_id, {}),
-        "last_seen": last_seen.get(client_id, 0),
-        "status": "Online" if time.time() - last_seen.get(client_id, 0) < 30 else "Offline"
-    }
-
-@app.post("/api/client/{client_id}/command")
-async def send_command_to_client(client_id: str, request: Request):
-    data = await request.json()
-    command = data.get("command", "")
-    if client_id in clients:
-        try:
-            await clients[client_id].send_text(command)
-            return {"status": "success", "message": f"Command sent to {client_id}"}
-        except Exception as e:
-            return {"status": "error", "message": str(e)}
-    return {"status": "error", "message": "Client not found"}
-
-@app.post("/logerror")
-async def log_error(req: Request):
-    data = await req.json()
-    logging.error(f"Client Error Report: {json.dumps(data)}")
-    return {"status": "logged"}
 
 @app.websocket("/ws/client/{client_id}")
 async def ws_client(ws: WebSocket, client_id: str):
@@ -231,7 +204,7 @@ if __name__ == "__main__":
         "main:app",
         host="0.0.0.0",
         port=port,
-        reload=True,
-        ws_ping_interval=30,   # Neu: Server Ping-Interval explizit setzen
-        ws_ping_timeout=60     # Neu: großzügiger Timeout setzen
+        reload=False,  # Reload deaktiviert in Production
+        ws_ping_interval=20,
+        ws_ping_timeout=40
     )
