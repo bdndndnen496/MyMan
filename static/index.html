@@ -2,10 +2,10 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Client-Übersicht</title>
+  <title>Client-Management</title>
   <style>
     body { font-family: sans-serif; margin: 20px; }
-    h2 { margin-top: 40px; }
+    h1, h2 { margin-top: 20px; }
     table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
     th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
     th { background: #f0f0f0; }
@@ -25,10 +25,8 @@
   </style>
 </head>
 <body>
-
   <h1>Client-Management</h1>
 
-  <!-- Backlog -->
   <h2>📥 Backlog (mehr als 2 Min offline)</h2>
   <table id="tbl-backlog">
     <thead>
@@ -37,10 +35,8 @@
     <tbody></tbody>
   </table>
 
-  <!-- Online / Offline gruppiert nach Netzwerk -->
   <div id="groups"></div>
 
-  <!-- Modal Overlay -->
   <div class="overlay" id="overlay"></div>
   <div class="modal" id="detail-modal">
     <h3>Client-Details</h3>
@@ -73,16 +69,15 @@
           <td>${c.public_ip}</td>
           <td>${c.username}</td>
           <td>${c.status}</td>
-          <td>${new Date(c.last_seen*1000).toLocaleTimeString()}</td>
+          <td>${new Date(c.last_seen * 1000).toLocaleTimeString()}</td>
           <td><button onclick="connect('${c.id}')">Connect</button></td>
         `;
         tb.appendChild(tr);
       });
 
-      // Gruppen
+      // Gruppen nach Netzwerk
       const container = document.getElementById("groups");
       container.innerHTML = "";
-      // merge online+offline
       const all = [...online, ...offline];
       const byNet = {};
       all.forEach(c => {
@@ -96,7 +91,8 @@
         const table = document.createElement("table");
         table.innerHTML = `
           <thead><tr><th>Public IP</th><th>Username</th><th>Status</th><th>Connect</th></tr></thead>
-          <tbody></tbody>`;
+          <tbody></tbody>
+        `;
         clients.forEach(c => {
           const row = document.createElement("tr");
           row.innerHTML = `
@@ -111,52 +107,40 @@
       });
     }
 
-    // WebSocket für Admin-Befehle
     function setupAdminWS() {
       adminWs = new WebSocket((location.protocol==="https:"?"wss":"ws") + "://" + location.host + "/ws/admin");
       adminWs.onopen = () => console.log("Admin WS verbunden");
       adminWs.onmessage = ev => {
-        // Ausgabe von Remote-Command
         const pre = document.getElementById("d-process-output");
         pre.textContent += ev.data + "\n";
       };
     }
 
-    // Wenn "Connect" geklickt
     function connect(clientId) {
-      // Suche Client-Daten
-      fetch(ENDPOINT).then(r=>r.json()).then(({ online, offline, backlog }) => {
+      fetch(ENDPOINT).then(r => r.json()).then(({ online, offline, backlog }) => {
         const all = [...online, ...offline, ...backlog];
-        const c = all.find(x=>x.id===clientId);
+        const c = all.find(x => x.id === clientId);
         if (!c) return;
-        // Fülle Modal
         document.getElementById("d-hostname").textContent = c.id.split("-")[0];
         document.getElementById("d-public").textContent = c.public_ip;
         document.getElementById("d-private").textContent = c.private_ip;
-        // Modal anzeigen
         document.getElementById("overlay").classList.add("show");
         document.getElementById("detail-modal").classList.add("show");
-        // Prozess-Output zurücksetzen
         document.getElementById("d-process-output").textContent = "";
-        // Attach click für Taskmanager
         document.getElementById("btn-process").onclick = () => {
-          // Befehl auswählen nach OS (hier einfach 'tasklist')
           adminWs.send(JSON.stringify({ target: clientId, cmd: "tasklist" }));
         };
       });
     }
 
-    // Modal schließen
     document.getElementById("btn-close").onclick = () => {
       document.getElementById("overlay").classList.remove("show");
       document.getElementById("detail-modal").classList.remove("show");
     };
 
-    // Initial
     setupAdminWS();
     fetchClients();
-    setInterval(fetchClients, 30000);  // alle 30 s aktualisieren
+    setInterval(fetchClients, 30000);
   </script>
-
 </body>
 </html>

@@ -32,7 +32,8 @@ async def list_clients():
     online = []
     offline = []
     backlog = []
-    for cid, ws in clients.items():
+    # Berücksichtige auch IDs, die gerade offline sind
+    for cid in list({**clients, **last_seen}.keys()):
         delta = now - last_seen.get(cid, 0)
         info = client_infos.get(cid, {})
         entry = {
@@ -65,23 +66,19 @@ async def websocket_client(websocket: WebSocket, client_id: str):
             data = await websocket.receive()
             last_seen[client_id] = time.time()
 
-            # Client-Info
             if "text" in data:
+                # Prüfe auf client_info-Nachricht
                 try:
                     msg = json.loads(data["text"])
                     if msg.get("type") == "client_info":
-                        # speichere alle Infos inkl. private_ip & network
                         client_infos[client_id] = msg.get("data", {})
                         continue
                 except json.JSONDecodeError:
                     pass
 
-                # Weiterleitung von Ausgaben/Bytes an Admin-WS
+                # Leite alle anderen Texte an Admin-WS weiter
                 if admin_ws:
-                    if "text" in data:
-                        await admin_ws.send_text(f"[{client_id}] {data['text']}")
-                    else:
-                        await admin_ws.send_bytes(data["bytes"])
+                    await admin_ws.send_text(f"[{client_id}] {data['text']}")
 
     except WebSocketDisconnect:
         clients.pop(client_id, None)
