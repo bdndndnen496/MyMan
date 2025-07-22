@@ -6,141 +6,78 @@
   <style>
     body { font-family: sans-serif; margin: 20px; }
     h1, h2 { margin-top: 20px; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
-    th { background: #f0f0f0; }
-    button { padding: 4px 8px; }
-    .backlog { background: #ffeeee; }
-    .modal {
-      display: none; position: fixed; top: 50%; left: 50%;
-      transform: translate(-50%, -50%); background: white; padding: 20px; border: 1px solid #333;
-      max-height: 80vh; overflow: auto;
-    }
-    .modal.show { display: block; }
-    .overlay {
-      display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0,0,0,0.5);
-    }
-    .overlay.show { display: block; }
+    table { width: 100%; border-collapse: collapse; margin-bottom:20px; }
+    th, td { border:1px solid #ccc; padding:8px; text-align:left; }
+    th { background:#f0f0f0; }
+    button { padding:4px 8px; }
   </style>
 </head>
 <body>
-  <h1>Client-Management</h1>
+  <h1>Client-Übersicht</h1>
 
   <h2>📥 Backlog (mehr als 2 Min offline)</h2>
   <table id="tbl-backlog">
-    <thead>
-      <tr><th>Public IP</th><th>Username</th><th>Status</th><th>Letzter Kontakt</th><th>Connect</th></tr>
-    </thead>
+    <thead><tr><th>IP</th><th>User</th><th>Status</th><th>Letzter Kontakt</th><th>Connect</th></tr></thead>
     <tbody></tbody>
   </table>
 
   <div id="groups"></div>
 
-  <div class="overlay" id="overlay"></div>
-  <div class="modal" id="detail-modal">
-    <h3>Client-Details</h3>
-    <p><strong>Hostname:</strong> <span id="d-hostname"></span></p>
-    <p><strong>Public IP:</strong> <span id="d-public"></span></p>
-    <p><strong>Private IP:</strong> <span id="d-private"></span></p>
-    <button id="btn-process">Live Taskmanager & Specs</button>
-    <button id="btn-close">Schließen</button>
-    <pre id="d-process-output" style="background:#f9f9f9; padding:10px; max-height:300px; overflow:auto;"></pre>
-  </div>
-
   <script>
     const ENDPOINT = "/clients";
-    let adminWs;
 
-    async function fetchClients() {
-      const res = await fetch(ENDPOINT);
-      const data = await res.json();
-      render(data);
+    async function fetchClients(){
+      const res=await fetch(ENDPOINT);
+      const {online,offline,backlog}=await res.json();
+      render(backlog,online,offline);
     }
 
-    function render({ online, offline, backlog }) {
+    function render(backlog,online,offline){
       // Backlog
-      const tb = document.querySelector("#tbl-backlog tbody");
-      tb.innerHTML = "";
-      backlog.forEach(c => {
-        const tr = document.createElement("tr");
-        tr.classList.add("backlog");
-        tr.innerHTML = `
-          <td>${c.public_ip}</td>
-          <td>${c.username}</td>
-          <td>${c.status}</td>
-          <td>${new Date(c.last_seen * 1000).toLocaleTimeString()}</td>
-          <td><button onclick="connect('${c.id}')">Connect</button></td>
-        `;
-        tb.appendChild(tr);
-      });
-
-      // Gruppen nach Netzwerk
-      const container = document.getElementById("groups");
-      container.innerHTML = "";
-      const all = [...online, ...offline];
-      const byNet = {};
-      all.forEach(c => {
-        byNet[c.network] = byNet[c.network] || [];
-        byNet[c.network].push(c);
-      });
-      Object.entries(byNet).forEach(([net, clients]) => {
-        const h2 = document.createElement("h2");
-        h2.textContent = `Netzwerk ${net}`;
-        container.appendChild(h2);
-        const table = document.createElement("table");
-        table.innerHTML = `
-          <thead><tr><th>Public IP</th><th>Username</th><th>Status</th><th>Connect</th></tr></thead>
-          <tbody></tbody>
-        `;
-        clients.forEach(c => {
-          const row = document.createElement("tr");
-          row.innerHTML = `
+      let tb=document.querySelector("#tbl-backlog tbody");
+      tb.innerHTML="";
+      backlog.forEach(c=>{
+        tb.innerHTML+=`
+          <tr>
             <td>${c.public_ip}</td>
             <td>${c.username}</td>
             <td>${c.status}</td>
-            <td><button onclick="connect('${c.id}')">Connect</button></td>
-          `;
-          table.querySelector("tbody").appendChild(row);
-        });
-        container.appendChild(table);
+            <td>${new Date(c.last_seen*1000).toLocaleTimeString()}</td>
+            <td><button onclick="goDetail('${c.id}')">Connect</button></td>
+          </tr>`;
       });
-    }
 
-    function setupAdminWS() {
-      adminWs = new WebSocket((location.protocol==="https:"?"wss":"ws") + "://" + location.host + "/ws/admin");
-      adminWs.onopen = () => console.log("Admin WS verbunden");
-      adminWs.onmessage = ev => {
-        const pre = document.getElementById("d-process-output");
-        pre.textContent += ev.data + "\n";
-      };
-    }
-
-    function connect(clientId) {
-      fetch(ENDPOINT).then(r => r.json()).then(({ online, offline, backlog }) => {
-        const all = [...online, ...offline, ...backlog];
-        const c = all.find(x => x.id === clientId);
-        if (!c) return;
-        document.getElementById("d-hostname").textContent = c.id.split("-")[0];
-        document.getElementById("d-public").textContent = c.public_ip;
-        document.getElementById("d-private").textContent = c.private_ip;
-        document.getElementById("overlay").classList.add("show");
-        document.getElementById("detail-modal").classList.add("show");
-        document.getElementById("d-process-output").textContent = "";
-        document.getElementById("btn-process").onclick = () => {
-          adminWs.send(JSON.stringify({ target: clientId, cmd: "tasklist" }));
-        };
+      // Gruppen nach Netzwerk
+      const all=[...online,...offline];
+      const byNet={};
+      all.forEach(c=>{
+        (byNet[c.network]=byNet[c.network]||[]).push(c);
       });
+      const cont=document.getElementById("groups");
+      cont.innerHTML="";
+      for(const net in byNet){
+        cont.innerHTML+=`<h2>Netzwerk ${net}</h2>
+          <table>
+            <thead><tr><th>IP</th><th>User</th><th>Status</th><th>Connect</th></tr></thead>
+            <tbody>
+              ${byNet[net].map(c=>`
+                <tr>
+                  <td>${c.public_ip}</td>
+                  <td>${c.username}</td>
+                  <td>${c.status}</td>
+                  <td><button onclick="goDetail('${c.id}')">Connect</button></td>
+                </tr>`).join("")}
+            </tbody>
+          </table>`;
+      }
     }
 
-    document.getElementById("btn-close").onclick = () => {
-      document.getElementById("overlay").classList.remove("show");
-      document.getElementById("detail-modal").classList.remove("show");
-    };
+    function goDetail(id){
+      window.location.href=`/client/${id}`;
+    }
 
-    setupAdminWS();
     fetchClients();
-    setInterval(fetchClients, 30000);
+    setInterval(fetchClients,30000);
   </script>
 </body>
 </html>
