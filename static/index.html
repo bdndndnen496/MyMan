@@ -6,66 +6,85 @@
 </head>
 <body>
   <h1>Client Manager</h1>
-  <div id="clients"></div>
-  <div id="selectedClient"></div>
-  <input type="text" id="cmdInput" placeholder="Command">
-  <button onclick="sendCommand()">Send</button>
+
+  <div id="clientList"></div>
+
+  <h2>Selected Client: <span id="selectedClient"></span></h2>
+  <textarea id="output" cols="80" rows="10" readonly></textarea><br>
+
+  <input type="text" id="command" placeholder="Enter command">
+  <button onclick="sendCommand()">Send Command</button>
   <button onclick="startScreen()">Start Screen</button>
   <button onclick="stopScreen()">Stop Screen</button>
-  <img id="screen" style="max-width: 100%; display:none;">
+
+  <img id="screen" style="display:none; max-width:100%; border:1px solid #000;">
 
   <script>
     let selectedClient = null;
-    const ws = new WebSocket(`wss://${window.location.host}/ws/admin`);
-    ws.onmessage = (e) => {
-      if (e.data.startsWith('[')) {
-        const idx = e.data.indexOf(']');
-        const id = e.data.slice(1, idx);
-        const msg = e.data.slice(idx+1);
-        if (id === selectedClient) {
-          document.getElementById('selectedClient').innerText = msg;
-        }
-      } else if (e.data instanceof Blob) {
-        const url = URL.createObjectURL(e.data);
-        const img = document.getElementById('screen');
-        img.src = url;
-        img.style.display = 'block';
-      } else {
-        const data = JSON.parse(e.data);
-        if (data.type === 'init') {
-          showClients(Object.keys(data.clients));
-        } else if (data.type === 'client_update') {
-          // no-op for simplicity
-        }
-      }
-    };
+    let ws = null;
 
-    function showClients(clients) {
-      const d = document.getElementById('clients');
-      d.innerHTML = '';
-      clients.forEach(id => {
-        const b = document.createElement('button');
-        b.innerText = id;
-        b.onclick = () => selectedClient = id;
-        d.appendChild(b);
-      });
+    function refreshClients() {
+      fetch('/clients')
+        .then(r => r.json())
+        .then(data => {
+          const div = document.getElementById('clientList');
+          div.innerHTML = '';
+          data.clients.forEach(c => {
+            const btn = document.createElement('button');
+            btn.innerText = `${c.id} (${c.status})`;
+            btn.onclick = () => selectClient(c.id);
+            div.appendChild(btn);
+          });
+        });
+    }
+
+    function selectClient(clientId) {
+      selectedClient = clientId;
+      document.getElementById('selectedClient').innerText = clientId;
+      document.getElementById('output').value = '';
     }
 
     function sendCommand() {
-      if (selectedClient) {
-        const cmd = document.getElementById('cmdInput').value;
-        ws.send(JSON.stringify({ target: selectedClient, cmd }));
+      if (selectedClient && ws) {
+        const cmd = document.getElementById('command').value;
+        ws.send(JSON.stringify({ target: selectedClient, cmd: cmd }));
       }
     }
 
     function startScreen() {
-      if (selectedClient) ws.send(JSON.stringify({ target: selectedClient, cmd: 'screenshot_start' }));
+      if (selectedClient && ws) {
+        ws.send(JSON.stringify({ target: selectedClient, cmd: 'screenshot_start' }));
+      }
     }
 
     function stopScreen() {
-      if (selectedClient) ws.send(JSON.stringify({ target: selectedClient, cmd: 'screenshot_stop' }));
-      document.getElementById('screen').style.display = 'none';
+      if (selectedClient && ws) {
+        ws.send(JSON.stringify({ target: selectedClient, cmd: 'screenshot_stop' }));
+        document.getElementById('screen').style.display = 'none';
+      }
     }
+
+    window.onload = () => {
+      refreshClients();
+      setInterval(refreshClients, 5000);
+
+      ws = new WebSocket(`wss://${location.host}/ws/admin`);
+
+      ws.onmessage = (event) => {
+        if (event.data.startsWith('[')) {
+          const endIdx = event.data.indexOf(']');
+          const clientId = event.data.slice(1, endIdx);
+          const msg = event.data.slice(endIdx + 1);
+          if (clientId === selectedClient) {
+            document.getElementById('output').value += msg + '\n';
+          }
+        } else if (event.data instanceof Blob) {
+          const img = document.getElementById('screen');
+          img.src = URL.createObjectURL(event.data);
+          img.style.display = 'block';
+        }
+      };
+    };
   </script>
 </body>
 </html>
