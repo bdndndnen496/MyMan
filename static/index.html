@@ -68,19 +68,41 @@ function loadClients() {
 function updateDetails() {
   if (!selectedClient) return;
   fetch("/clients").then(r => r.json()).then(data => {
+    let found = false;
     for (const clients of Object.values(data)) {
       for (const c of clients) {
         if (c.id === selectedClient) {
-          const info = c.info;
-          for (const key in info) {
-            const el = document.getElementById(key);
-            if (el) el.textContent = info[key];
-          }
+          found = true;
+          const info = c.info || {};
+          const keys = [
+            'hostname','username','cpu_percent','cpu_cores','cpu_threads',
+            'ram_total','ram_used','ram_free','disk_total','disk_used','disk_free',
+            'gpu_name','gpu_load','gpu_mem_total','gpu_mem_used',
+            'net_bytes_sent','net_bytes_recv','uptime_minutes','public_ip','os'
+          ];
+          keys.forEach(k => {
+            const el = document.getElementById(k);
+            if (el) el.textContent = info[k] || "";
+          });
         }
       }
     }
+    if (!found) {
+      // Clear UI if client disappeared (optional)
+      const keys = [
+        'hostname','username','cpu_percent','cpu_cores','cpu_threads',
+        'ram_total','ram_used','ram_free','disk_total','disk_used','disk_free',
+        'gpu_name','gpu_load','gpu_mem_total','gpu_mem_used',
+        'net_bytes_sent','net_bytes_recv','uptime_minutes','public_ip','os'
+      ];
+      keys.forEach(k => {
+        const el = document.getElementById(k);
+        if (el) el.textContent = "";
+      });
+    }
   });
 }
+
 
 function select(id) {
   selectedClient = id;
