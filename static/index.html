@@ -5,16 +5,40 @@
 <title>Client Manager</title>
 <style>
   body { font-family: sans-serif; }
-  pre { background: #f0f0f0; padding: 10px; }
-  ul { list-style: none; padding-left: 0; }
-  li { margin-bottom: 5px; }
-  h2 { margin-top: 20px; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ccc; padding: 4px; text-align: left; }
+  th { background: #eee; }
 </style>
 </head>
 <body>
 <h1>Client Manager</h1>
 <div id="clients"></div>
-<div id="client-info"></div>
+<h2>Taskmanager Details</h2>
+<table>
+  <tbody>
+    <tr><th>Hostname</th><td id="hostname"></td></tr>
+    <tr><th>Username</th><td id="username"></td></tr>
+    <tr><th>CPU %</th><td id="cpu_percent"></td></tr>
+    <tr><th>CPU Cores</th><td id="cpu_cores"></td></tr>
+    <tr><th>CPU Threads</th><td id="cpu_threads"></td></tr>
+    <tr><th>RAM Total</th><td id="ram_total"></td></tr>
+    <tr><th>RAM Used</th><td id="ram_used"></td></tr>
+    <tr><th>RAM Free</th><td id="ram_free"></td></tr>
+    <tr><th>Disk Total</th><td id="disk_total"></td></tr>
+    <tr><th>Disk Used</th><td id="disk_used"></td></tr>
+    <tr><th>Disk Free</th><td id="disk_free"></td></tr>
+    <tr><th>GPU Name</th><td id="gpu_name"></td></tr>
+    <tr><th>GPU Load</th><td id="gpu_load"></td></tr>
+    <tr><th>GPU Mem Total</th><td id="gpu_mem_total"></td></tr>
+    <tr><th>GPU Mem Used</th><td id="gpu_mem_used"></td></tr>
+    <tr><th>Net Sent</th><td id="net_bytes_sent"></td></tr>
+    <tr><th>Net Recv</th><td id="net_bytes_recv"></td></tr>
+    <tr><th>Uptime (min)</th><td id="uptime_minutes"></td></tr>
+    <tr><th>Public IP</th><td id="public_ip"></td></tr>
+    <tr><th>OS</th><td id="os"></td></tr>
+  </tbody>
+</table>
+
 <input type="text" id="cmd">
 <button onclick="sendCommand()">Send</button>
 <button onclick="startScreen()">Start Screen</button>
@@ -23,7 +47,7 @@
 <pre id="output"></pre>
 
 <script>
-let ws, selectedClient, allClients = {};
+let ws, selectedClient = null, allClients = {};
 
 function loadClients() {
   fetch("/clients").then(r => r.json()).then(data => {
@@ -41,11 +65,26 @@ function loadClients() {
   });
 }
 
+function updateDetails() {
+  if (!selectedClient) return;
+  fetch("/clients").then(r => r.json()).then(data => {
+    for (const clients of Object.values(data)) {
+      for (const c of clients) {
+        if (c.id === selectedClient) {
+          const info = c.info;
+          for (const key in info) {
+            const el = document.getElementById(key);
+            if (el) el.textContent = info[key];
+          }
+        }
+      }
+    }
+  });
+}
+
 function select(id) {
   selectedClient = id;
-  const info = allClients[id]?.info || {};
-  let details = Object.entries(info).map(([k, v]) => `${k}: ${v}`).join("\n");
-  document.getElementById("client-info").innerHTML = `<pre>${details}</pre>`;
+  updateDetails();
 }
 
 function connectAdmin() {
@@ -73,6 +112,7 @@ function stopScreen() {
 }
 
 setInterval(loadClients, 5000);
+setInterval(updateDetails, 5000);
 loadClients();
 connectAdmin();
 </script>
