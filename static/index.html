@@ -6,6 +6,9 @@
 <style>
   body { font-family: sans-serif; }
   pre { background: #f0f0f0; padding: 10px; }
+  ul { list-style: none; padding-left: 0; }
+  li { margin-bottom: 5px; }
+  h2 { margin-top: 20px; }
 </style>
 </head>
 <body>
@@ -20,14 +23,16 @@
 <pre id="output"></pre>
 
 <script>
-let ws, selectedClient;
+let ws, selectedClient, allClients = {};
 
 function loadClients() {
   fetch("/clients").then(r => r.json()).then(data => {
     let html = "";
+    allClients = {};
     for (const [net, clients] of Object.entries(data)) {
       html += `<h2>${net}</h2><ul>`;
       clients.forEach(c => {
+        allClients[c.id] = c;
         html += `<li>${c.hostname} (${c.status}) <button onclick="select('${c.id}')">Select</button></li>`;
       });
       html += "</ul>";
@@ -38,13 +43,9 @@ function loadClients() {
 
 function select(id) {
   selectedClient = id;
-  let info = Object.entries(getClientInfo(id)).map(([k,v]) => `${k}: ${v}`).join("\n");
-  document.getElementById("client-info").innerHTML = `<pre>${info}</pre>`;
-}
-
-function getClientInfo(id) {
-  let all = document.querySelector("#clients").innerHTML;
-  return all[id] || {};
+  const info = allClients[id]?.info || {};
+  let details = Object.entries(info).map(([k, v]) => `${k}: ${v}`).join("\n");
+  document.getElementById("client-info").innerHTML = `<pre>${details}</pre>`;
 }
 
 function connectAdmin() {
