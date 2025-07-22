@@ -6,6 +6,7 @@ import uvicorn
 import time
 import json
 import os
+import asyncio
 
 app = FastAPI()
 
@@ -21,6 +22,25 @@ clients = {}
 last_seen = {}
 client_infos = {}
 admin_ws = None
+
+async def ping_clients():
+    while True:
+        now = time.time()
+        to_remove = []
+        for client_id, ws in clients.items():
+            try:
+                await ws.send_text("ping")
+            except:
+                to_remove.append(client_id)
+        for client_id in to_remove:
+            clients.pop(client_id, None)
+            last_seen.pop(client_id, None)
+            client_infos.pop(client_id, None)
+        await asyncio.sleep(10)
+
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(ping_clients())
 
 @app.get("/clients")
 async def list_clients():
@@ -54,6 +74,8 @@ async def websocket_client(websocket: WebSocket, client_id: str):
                         continue
                 except:
                     msg = data["text"]
+                if msg == "pong":
+                    continue
                 if admin_ws:
                     await admin_ws.send_text(f"[{client_id}] {msg}")
             elif "bytes" in data:
