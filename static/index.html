@@ -1,90 +1,162 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Client Manager</title>
+  <title>Client-Übersicht</title>
+  <style>
+    body { font-family: sans-serif; margin: 20px; }
+    h2 { margin-top: 40px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    th { background: #f0f0f0; }
+    button { padding: 4px 8px; }
+    .backlog { background: #ffeeee; }
+    .modal {
+      display: none; position: fixed; top: 50%; left: 50%;
+      transform: translate(-50%, -50%); background: white; padding: 20px; border: 1px solid #333;
+      max-height: 80vh; overflow: auto;
+    }
+    .modal.show { display: block; }
+    .overlay {
+      display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5);
+    }
+    .overlay.show { display: block; }
+  </style>
 </head>
 <body>
-  <h1>Client Manager</h1>
 
-  <div id="clientList"></div>
+  <h1>Client-Management</h1>
 
-  <h2>Selected Client: <span id="selectedClient"></span></h2>
-  <textarea id="output" cols="80" rows="10" readonly></textarea><br>
+  <!-- Backlog -->
+  <h2>📥 Backlog (mehr als 2 Min offline)</h2>
+  <table id="tbl-backlog">
+    <thead>
+      <tr><th>Public IP</th><th>Username</th><th>Status</th><th>Letzter Kontakt</th><th>Connect</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 
-  <input type="text" id="command" placeholder="Enter command">
-  <button onclick="sendCommand()">Send Command</button>
-  <button onclick="startScreen()">Start Screen</button>
-  <button onclick="stopScreen()">Stop Screen</button>
+  <!-- Online / Offline gruppiert nach Netzwerk -->
+  <div id="groups"></div>
 
-  <img id="screen" style="display:none; max-width:100%; border:1px solid #000;">
+  <!-- Modal Overlay -->
+  <div class="overlay" id="overlay"></div>
+  <div class="modal" id="detail-modal">
+    <h3>Client-Details</h3>
+    <p><strong>Hostname:</strong> <span id="d-hostname"></span></p>
+    <p><strong>Public IP:</strong> <span id="d-public"></span></p>
+    <p><strong>Private IP:</strong> <span id="d-private"></span></p>
+    <button id="btn-process">Live Taskmanager & Specs</button>
+    <button id="btn-close">Schließen</button>
+    <pre id="d-process-output" style="background:#f9f9f9; padding:10px; max-height:300px; overflow:auto;"></pre>
+  </div>
 
   <script>
-    let selectedClient = null;
-    let ws = null;
+    const ENDPOINT = "/clients";
+    let adminWs;
 
-    function refreshClients() {
-      fetch('/clients')
-        .then(r => r.json())
-        .then(data => {
-          const div = document.getElementById('clientList');
-          div.innerHTML = '';
-          data.clients.forEach(c => {
-            const btn = document.createElement('button');
-            btn.innerText = `${c.id} (${c.status})`;
-            btn.onclick = () => selectClient(c.id);
-            div.appendChild(btn);
-          });
+    async function fetchClients() {
+      const res = await fetch(ENDPOINT);
+      const data = await res.json();
+      render(data);
+    }
+
+    function render({ online, offline, backlog }) {
+      // Backlog
+      const tb = document.querySelector("#tbl-backlog tbody");
+      tb.innerHTML = "";
+      backlog.forEach(c => {
+        const tr = document.createElement("tr");
+        tr.classList.add("backlog");
+        tr.innerHTML = `
+          <td>${c.public_ip}</td>
+          <td>${c.username}</td>
+          <td>${c.status}</td>
+          <td>${new Date(c.last_seen*1000).toLocaleTimeString()}</td>
+          <td><button onclick="connect('${c.id}')">Connect</button></td>
+        `;
+        tb.appendChild(tr);
+      });
+
+      // Gruppen
+      const container = document.getElementById("groups");
+      container.innerHTML = "";
+      // merge online+offline
+      const all = [...online, ...offline];
+      const byNet = {};
+      all.forEach(c => {
+        byNet[c.network] = byNet[c.network] || [];
+        byNet[c.network].push(c);
+      });
+      Object.entries(byNet).forEach(([net, clients]) => {
+        const h2 = document.createElement("h2");
+        h2.textContent = `Netzwerk ${net}`;
+        container.appendChild(h2);
+        const table = document.createElement("table");
+        table.innerHTML = `
+          <thead><tr><th>Public IP</th><th>Username</th><th>Status</th><th>Connect</th></tr></thead>
+          <tbody></tbody>`;
+        clients.forEach(c => {
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td>${c.public_ip}</td>
+            <td>${c.username}</td>
+            <td>${c.status}</td>
+            <td><button onclick="connect('${c.id}')">Connect</button></td>
+          `;
+          table.querySelector("tbody").appendChild(row);
         });
+        container.appendChild(table);
+      });
     }
 
-    function selectClient(clientId) {
-      selectedClient = clientId;
-      document.getElementById('selectedClient').innerText = clientId;
-      document.getElementById('output').value = '';
-    }
-
-    function sendCommand() {
-      if (selectedClient && ws) {
-        const cmd = document.getElementById('command').value;
-        ws.send(JSON.stringify({ target: selectedClient, cmd: cmd }));
-      }
-    }
-
-    function startScreen() {
-      if (selectedClient && ws) {
-        ws.send(JSON.stringify({ target: selectedClient, cmd: 'screenshot_start' }));
-      }
-    }
-
-    function stopScreen() {
-      if (selectedClient && ws) {
-        ws.send(JSON.stringify({ target: selectedClient, cmd: 'screenshot_stop' }));
-        document.getElementById('screen').style.display = 'none';
-      }
-    }
-
-    window.onload = () => {
-      refreshClients();
-      setInterval(refreshClients, 5000);
-
-      ws = new WebSocket(`wss://${location.host}/ws/admin`);
-
-      ws.onmessage = (event) => {
-        if (event.data.startsWith('[')) {
-          const endIdx = event.data.indexOf(']');
-          const clientId = event.data.slice(1, endIdx);
-          const msg = event.data.slice(endIdx + 1);
-          if (clientId === selectedClient) {
-            document.getElementById('output').value += msg + '\n';
-          }
-        } else if (event.data instanceof Blob) {
-          const img = document.getElementById('screen');
-          img.src = URL.createObjectURL(event.data);
-          img.style.display = 'block';
-        }
+    // WebSocket für Admin-Befehle
+    function setupAdminWS() {
+      adminWs = new WebSocket((location.protocol==="https:"?"wss":"ws") + "://" + location.host + "/ws/admin");
+      adminWs.onopen = () => console.log("Admin WS verbunden");
+      adminWs.onmessage = ev => {
+        // Ausgabe von Remote-Command
+        const pre = document.getElementById("d-process-output");
+        pre.textContent += ev.data + "\n";
       };
+    }
+
+    // Wenn "Connect" geklickt
+    function connect(clientId) {
+      // Suche Client-Daten
+      fetch(ENDPOINT).then(r=>r.json()).then(({ online, offline, backlog }) => {
+        const all = [...online, ...offline, ...backlog];
+        const c = all.find(x=>x.id===clientId);
+        if (!c) return;
+        // Fülle Modal
+        document.getElementById("d-hostname").textContent = c.id.split("-")[0];
+        document.getElementById("d-public").textContent = c.public_ip;
+        document.getElementById("d-private").textContent = c.private_ip;
+        // Modal anzeigen
+        document.getElementById("overlay").classList.add("show");
+        document.getElementById("detail-modal").classList.add("show");
+        // Prozess-Output zurücksetzen
+        document.getElementById("d-process-output").textContent = "";
+        // Attach click für Taskmanager
+        document.getElementById("btn-process").onclick = () => {
+          // Befehl auswählen nach OS (hier einfach 'tasklist')
+          adminWs.send(JSON.stringify({ target: clientId, cmd: "tasklist" }));
+        };
+      });
+    }
+
+    // Modal schließen
+    document.getElementById("btn-close").onclick = () => {
+      document.getElementById("overlay").classList.remove("show");
+      document.getElementById("detail-modal").classList.remove("show");
     };
+
+    // Initial
+    setupAdminWS();
+    fetchClients();
+    setInterval(fetchClients, 30000);  // alle 30 s aktualisieren
   </script>
+
 </body>
 </html>

