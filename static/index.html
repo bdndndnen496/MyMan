@@ -1,301 +1,840 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8">
-  <title>Client-Management Dashboard</title>
-  <!-- Tailwind CSS via CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Remote Access Control</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            color: #00ff88;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 15px;
+            font-size: 0.9rem;
+            margin-left: 10px;
+        }
+
+        .status.connected {
+            background: #00ff88;
+            color: #000;
+        }
+
+        .status.disconnected {
+            background: #ff4444;
+            color: #fff;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 20px;
+            height: calc(100vh - 200px);
+        }
+
+        .sidebar {
+            background: #2a2a2a;
+            border-radius: 10px;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .client-list {
+            margin-bottom: 20px;
+        }
+
+        .client-item {
+            background: #3a3a3a;
+            margin-bottom: 10px;
+            padding: 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .client-item:hover {
+            background: #4a4a4a;
+        }
+
+        .client-item.selected {
+            background: #00ff88;
+            color: #000;
+        }
+
+        .client-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .client-info {
+            font-size: 0.8rem;
+            opacity: 0.8;
+        }
+
+        .client-status {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+
+        .client-status.online {
+            background: #00ff88;
+        }
+
+        .client-status.offline {
+            background: #ff4444;
+        }
+
+        .main-panel {
+            background: #2a2a2a;
+            border-radius: 10px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .control-tabs {
+            display: flex;
+            margin-bottom: 20px;
+            background: #1a1a1a;
+            border-radius: 8px;
+            padding: 5px;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 10px;
+            text-align: center;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .tab.active {
+            background: #00ff88;
+            color: #000;
+        }
+
+        .tab-content {
+            flex: 1;
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .screen-view {
+            width: 100%;
+            height: 100%;
+            background: #000;
+            border-radius: 8px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .screen-image {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            cursor: crosshair;
+        }
+
+        .cmd-terminal {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .cmd-output {
+            flex: 1;
+            background: #000;
+            color: #00ff00;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            overflow-y: auto;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        .cmd-input {
+            display: flex;
+            gap: 10px;
+        }
+
+        .cmd-input input {
+            flex: 1;
+            padding: 10px;
+            background: #3a3a3a;
+            border: none;
+            border-radius: 5px;
+            color: #fff;
+            font-family: 'Courier New', monospace;
+        }
+
+        .cmd-input button {
+            padding: 10px 20px;
+            background: #00ff88;
+            border: none;
+            border-radius: 5px;
+            color: #000;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .task-manager {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .process-list {
+            flex: 1;
+            overflow-y: auto;
+            background: #000;
+            border-radius: 8px;
+            padding: 10px;
+        }
+
+        .process-item {
+            display: grid;
+            grid-template-columns: 60px 1fr 80px 100px 60px;
+            gap: 10px;
+            padding: 8px;
+            border-bottom: 1px solid #333;
+            align-items: center;
+            font-size: 0.9rem;
+        }
+
+        .process-header {
+            font-weight: bold;
+            background: #333;
+            color: #00ff88;
+        }
+
+        .kill-btn {
+            padding: 2px 8px;
+            background: #ff4444;
+            border: none;
+            border-radius: 3px;
+            color: #fff;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+
+        .controls {
+            margin-bottom: 10px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .control-btn {
+            padding: 8px 15px;
+            background: #00ff88;
+            border: none;
+            border-radius: 5px;
+            color: #000;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .control-btn:hover {
+            background: #00cc6a;
+        }
+
+        .control-btn.danger {
+            background: #ff4444;
+            color: #fff;
+        }
+
+        .session-info {
+            background: #3a3a3a;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .session-info h3 {
+            color: #00ff88;
+            margin-bottom: 10px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+
+        .specs-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .spec-item {
+            background: #4a4a4a;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+        }
+
+        .no-client {
+            text-align: center;
+            color: #666;
+            font-size: 1.2rem;
+            margin-top: 50px;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+            
+            .sidebar {
+                order: 2;
+                height: 300px;
+            }
+        }
+    </style>
 </head>
-<body class="bg-gray-100 text-gray-800">
+<body>
+    <div class="container">
+        <header>
+            <h1>Remote Access Control</h1>
+            <span id="connectionStatus" class="status disconnected">Getrennt</span>
+        </header>
 
-  <!-- Container -->
-  <div id="overview" class="container mx-auto p-6">
+        <div class="main-content">
+            <div class="sidebar">
+                <h3>Verbundene Clients</h3>
+                <div id="clientList" class="client-list">
+                    <div class="no-client">Keine Clients verbunden</div>
+                </div>
+            </div>
 
-    <!-- Header -->
-    <header class="mb-6">
-      <h1 class="text-3xl font-bold">Client-Management</h1>
-      <p class="text-gray-600 mt-1">Übersicht aller verbundenen Clients</p>
-    </header>
+            <div class="main-panel">
+                <div id="noClientSelected" class="no-client">
+                    Wählen Sie einen Client aus der Liste aus
+                </div>
 
-    <!-- Backlog Section -->
-    <section class="mb-8">
-      <h2 class="text-2xl font-semibold mb-4">📥 Backlog (mehr als 2 Min offline)</h2>
-      <div class="overflow-x-auto">
-        <table id="tbl-backlog" class="min-w-full bg-white shadow rounded-lg overflow-hidden">
-          <thead class="bg-gray-200">
-            <tr>
-              <th class="px-4 py-2 text-left">Public IP</th>
-              <th class="px-4 py-2 text-left">Username</th>
-              <th class="px-4 py-2 text-left">Status</th>
-              <th class="px-4 py-2 text-left">Letzter Kontakt</th>
-              <th class="px-4 py-2 text-left">Connect</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y">
-            <!-- Dynamisch gefüllt -->
-          </tbody>
-        </table>
-      </div>
-    </section>
+                <div id="clientPanel" style="display: none;">
+                    <div class="session-info">
+                        <h3>Client Information</h3>
+                        <div class="info-row">
+                            <span>Username:</span>
+                            <span id="clientUsername">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span>IP Adresse:</span>
+                            <span id="clientIP">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span>Session ID:</span>
+                            <span id="clientSessionID">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span>Betriebssystem:</span>
+                            <span id="clientOS">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span>Hostname:</span>
+                            <span id="clientHostname">-</span>
+                        </div>
+                        
+                        <div class="specs-grid">
+                            <div class="spec-item">
+                                <div>CPU Kerne</div>
+                                <div id="cpuCores">-</div>
+                            </div>
+                            <div class="spec-item">
+                                <div>CPU Auslastung</div>
+                                <div id="cpuUsage">-</div>
+                            </div>
+                            <div class="spec-item">
+                                <div>RAM Total</div>
+                                <div id="ramTotal">-</div>
+                            </div>
+                            <div class="spec-item">
+                                <div>RAM Verfügbar</div>
+                                <div id="ramAvailable">-</div>
+                            </div>
+                        </div>
+                    </div>
 
-    <!-- Groups by Network -->
-    <section id="groups" class="space-y-8">
-      <!-- Dynamisch gefüllt -->
-    </section>
+                    <div class="controls">
+                        <button class="control-btn" onclick="startScreenShare()">Screen Share starten</button>
+                        <button class="control-btn" onclick="stopScreenShare()">Screen Share stoppen</button>
+                        <button class="control-btn" onclick="refreshProcesses()">Prozesse aktualisieren</button>
+                        <button class="control-btn danger" onclick="disconnectClient()">Client trennen</button>
+                    </div>
 
-  </div>
+                    <div class="control-tabs">
+                        <div class="tab active" onclick="switchTab('screen')">Bildschirm</div>
+                        <div class="tab" onclick="switchTab('cmd')">Terminal</div>
+                        <div class="tab" onclick="switchTab('taskmanager')">Task Manager</div>
+                    </div>
 
-  <!-- Detail View -->
-  <div id="detail" class="container mx-auto p-6 hidden">
-    <button onclick="goHome()" class="mb-4 inline-flex items-center px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded">
-      ← Zurück zur Übersicht
-    </button>
-    <header class="mb-6">
-      <h1 class="text-3xl font-bold">Client: <span id="cid"></span></h1>
-    </header>
+                    <div id="screenTab" class="tab-content active">
+                        <div class="screen-view">
+                            <img id="screenImage" class="screen-image" style="display: none;" />
+                            <div id="screenPlaceholder" style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666; font-size: 1.2rem;">
+                                Screen Share nicht aktiv
+                            </div>
+                        </div>
+                    </div>
 
-    <div class="bg-white shadow rounded-lg p-6 mb-8">
-      <h2 class="text-2xl font-semibold mb-4">Specs &amp; Info</h2>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <p><strong>Public IP:</strong> <span id="sp-public"></span></p>
-        <p><strong>Private IP:</strong> <span id="sp-private"></span></p>
-        <p><strong>OS:</strong> <span id="sp-os"></span></p>
-        <p><strong>CPU:</strong> <span id="sp-cpu"></span></p>
-        <p><strong>RAM:</strong> <span id="sp-ram"></span></p>
-        <p><strong>Disk:</strong> <span id="sp-disk"></span></p>
-        <p><strong>Netzwerk:</strong> <span id="sp-net"></span></p>
-      </div>
+                    <div id="cmdTab" class="tab-content">
+                        <div class="cmd-terminal">
+                            <div id="cmdOutput" class="cmd-output">
+                                Terminal bereit...<br>
+                            </div>
+                            <div class="cmd-input">
+                                <input type="text" id="cmdInput" placeholder="Befehl eingeben..." onkeypress="handleCmdKeyPress(event)">
+                                <button onclick="executeCommand()">Ausführen</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="taskmanagerTab" class="tab-content">
+                        <div class="task-manager">
+                            <div class="process-list">
+                                <div class="process-item process-header">
+                                    <div>PID</div>
+                                    <div>Name</div>
+                                    <div>CPU %</div>
+                                    <div>Speicher</div>
+                                    <div>Aktion</div>
+                                </div>
+                                <div id="processList">
+                                    <!-- Prozesse werden hier eingefügt -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <div class="bg-white shadow rounded-lg p-6 mb-8">
-      <h2 class="text-2xl font-semibold mb-4">Remote Konsole</h2>
-      <div id="console" class="h-48 overflow-auto bg-black text-green-400 p-4 rounded mb-4"></div>
-      <div class="flex space-x-2">
-        <input id="cmd" type="text" placeholder="Befehl eingeben…"
-               class="flex-1 border border-gray-300 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400" />
-        <button id="send"
-                class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded">Senden</button>
-        <button id="tm-btn"
-                class="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded">Taskmanager</button>
-      </div>
-    </div>
-  </div>
+    <script>
+        let ws = null;
+        let selectedClient = null;
+        let clients = {};
+        let screenShareActive = false;
 
-  <!-- Modal Overlay -->
-  <div id="overlay" class="fixed inset-0 bg-black bg-opacity-50 hidden"></div>
+        // WebSocket-Verbindung herstellen
+        function connectWebSocket() {
+            try {
+                // Für lokalen Test - ändere die URL für deine Render-Instanz
+                ws = new WebSocket('ws://localhost:8765/ws/controller/');
+                
+                ws.onopen = function() {
+                    console.log('WebSocket verbunden');
+                    updateConnectionStatus(true);
+                    requestClientList();
+                };
 
-  <!-- Taskmanager Modal -->
-  <div id="tm-modal" class="fixed inset-0 flex items-center justify-center hidden">
-    <div class="bg-white rounded-lg shadow-lg w-full max-w-3xl mx-4 p-6 relative">
-      <button id="tm-close"
-              class="absolute top-4 right-4 text-gray-500 hover:text-gray-700">&times;</button>
-      <h3 class="text-2xl font-semibold mb-4">Live Taskmanager</h3>
-      <div class="tabs flex border-b mb-4">
-        <div class="tab px-4 py-2 cursor-pointer active" data-cmd="tasklist">Prozesse</div>
-        <div class="tab px-4 py-2 cursor-pointer" data-cmd="wmic cpu get loadpercentage">CPU</div>
-        <div class="tab px-4 py-2 cursor-pointer" data-cmd="wmic OS get FreePhysicalMemory,TotalVisibleMemorySize">Memory</div>
-        <div class="tab px-4 py-2 cursor-pointer" data-cmd="wmic logicaldisk get size,freespace">Disk</div>
-      </div>
-      <div id="tm-contents" class="space-y-4">
-        <div class="tab-content active max-h-64 overflow-auto bg-gray-100 p-4 rounded" id="content-0"></div>
-        <div class="tab-content max-h-64 overflow-auto bg-gray-100 p-4 rounded" id="content-1"></div>
-        <div class="tab-content max-h-64 overflow-auto bg-gray-100 p-4 rounded" id="content-2"></div>
-        <div class="tab-content max-h-64 overflow-auto bg-gray-100 p-4 rounded" id="content-3"></div>
-      </div>
-    </div>
-  </div>
+                ws.onmessage = function(event) {
+                    const data = JSON.parse(event.data);
+                    handleWebSocketMessage(data);
+                };
 
-  <script>
-    const ENDPOINT = "/clients";
-    let adminWs;
+                ws.onclose = function() {
+                    console.log('WebSocket getrennt');
+                    updateConnectionStatus(false);
+                    // Automatische Wiederverbindung nach 3 Sekunden
+                    setTimeout(() => {
+                        connectWebSocket();
+                    }, 3000);
+                };
 
-    // Überblick laden
-    async function fetchClients(){
-      try {
-        const res = await fetch(ENDPOINT);
-        const { online, offline, backlog } = await res.json();
-        renderOverview(online, offline, backlog);
-      } catch (e) {
-        console.error("Fehler beim Laden der Client-Daten:", e);
-      }
-    }
+                ws.onerror = function(error) {
+                    console.error('WebSocket Fehler:', error);
+                    updateConnectionStatus(false);
+                };
+            } catch (error) {
+                console.error('Fehler beim Verbinden:', error);
+                updateConnectionStatus(false);
+            }
+        }
 
-    function renderOverview(online, offline, backlog){
-      // Backlog Tabelle füllen
-      const tb = document.querySelector("#tbl-backlog tbody");
-      tb.innerHTML = "";
-      backlog.forEach(c => {
-        const last = new Date(c.last_seen*1000).toLocaleTimeString();
-        const row = document.createElement("tr");
-        row.className = "divide-x";
+        function updateConnectionStatus(connected) {
+            const statusElement = document.getElementById('connectionStatus');
+            if (connected) {
+                statusElement.textContent = 'Verbunden';
+                statusElement.className = 'status connected';
+            } else {
+                statusElement.textContent = 'Getrennt';
+                statusElement.className = 'status disconnected';
+            }
+        }
 
-        row.innerHTML = `
-          <td class="px-4 py-2">${c.public_ip}</td>
-          <td class="px-4 py-2">${c.username}</td>
-          <td class="px-4 py-2 text-red-600 font-semibold">${c.status}</td>
-          <td class="px-4 py-2">${last}</td>
-          <td class="px-4 py-2">
-            <button onclick="showDetail('${c.id}')"
-                    class="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded">
-              Connect
-            </button>
-          </td>`;
-        tb.appendChild(row);
-      });
+        function handleWebSocketMessage(data) {
+            switch (data.type) {
+                case 'client_list':
+                    updateClientList(data.clients);
+                    break;
+                case 'screen_frame':
+                    updateScreenShare(data);
+                    break;
+                case 'cmd_result':
+                    displayCommandResult(data);
+                    break;
+                case 'process_list':
+                    updateProcessList(data.processes);
+                    break;
+                case 'process_killed':
+                    handleProcessKilled(data);
+                    break;
+            }
+        }
 
-      // Gruppen nach Netzwerk
-      const all = [...online, ...offline];
-      const byNet = {};
-      all.forEach(c => {
-        if (!byNet[c.network]) byNet[c.network] = [];
-        byNet[c.network].push(c);
-      });
-      const cont = document.getElementById("groups");
-      cont.innerHTML = "";
+        function requestClientList() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'get_client_list'
+                }));
+            }
+        }
 
-      for (const [network, clients] of Object.entries(byNet)) {
-        const section = document.createElement("section");
-        section.className = "mb-8";
-        section.innerHTML = `
-          <h2 class="text-2xl font-semibold mb-4">Netzwerk: ${network}</h2>
-          <div class="overflow-x-auto">
-            <table class="min-w-full bg-white shadow rounded-lg overflow-hidden">
-              <thead class="bg-gray-200">
-                <tr>
-                  <th class="px-4 py-2">Public IP</th>
-                  <th class="px-4 py-2">Username</th>
-                  <th class="px-4 py-2">Status</th>
-                  <th class="px-4 py-2">Connect</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y">
-                ${clients.map(c => {
-                  const statusColor = c.status==="Online"?"text-green-600":"text-gray-600";
-                  return `
-                  <tr>
-                    <td class="px-4 py-2">${c.public_ip}</td>
-                    <td class="px-4 py-2">${c.username}</td>
-                    <td class="px-4 py-2 ${statusColor} font-semibold">${c.status}</td>
-                    <td class="px-4 py-2">
-                      <button onclick="showDetail('${c.id}')"
-                              class="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded">
-                        Connect
-                      </button>
-                    </td>
-                  </tr>`}).join("")}
-              </tbody>
-            </table>
-          </div>`;
+        function updateClientList(clientList) {
+            clients = {};
+            const listElement = document.getElementById('clientList');
+            
+            if (clientList.length === 0) {
+                listElement.innerHTML = '<div class="no-client">Keine Clients verbunden</div>';
+                return;
+            }
 
-        cont.appendChild(section);
-      }
-    }
+            listElement.innerHTML = '';
+            
+            clientList.forEach(client => {
+                clients[client.client_id] = client;
+                
+                const clientElement = document.createElement('div');
+                clientElement.className = 'client-item';
+                clientElement.onclick = () => selectClient(client.client_id);
+                
+                clientElement.innerHTML = `
+                    <div class="client-name">
+                        <span class="client-status ${client.status}"></span>
+                        ${client.username}
+                    </div>
+                    <div class="client-info">
+                        IP: ${client.ip}<br>
+                        OS: ${client.os}<br>
+                        Session: ${client.session_id}
+                    </div>
+                `;
+                
+                listElement.appendChild(clientElement);
+            });
+        }
 
-    // Detail-Ansicht wechseln
-    function showDetail(id){
-      location.hash = id;
-    }
-    function goHome(){
-      location.hash = "";
-    }
+        function selectClient(clientId) {
+            selectedClient = clientId;
+            const client = clients[clientId];
+            
+            // UI aktualisieren
+            document.querySelectorAll('.client-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            event.currentTarget.classList.add('selected');
+            
+            // Client-Panel anzeigen
+            document.getElementById('noClientSelected').style.display = 'none';
+            document.getElementById('clientPanel').style.display = 'block';
+            
+            // Client-Informationen anzeigen
+            document.getElementById('clientUsername').textContent = client.username;
+            document.getElementById('clientIP').textContent = client.ip;
+            document.getElementById('clientSessionID').textContent = client.session_id;
+            document.getElementById('clientOS').textContent = client.os;
+            document.getElementById('clientHostname').textContent = client.hostname;
+            
+            // System-Specs anzeigen
+            if (client.specs) {
+                document.getElementById('cpuCores').textContent = client.specs.cpu_count || '-';
+                document.getElementById('cpuUsage').textContent = client.specs.cpu_percent ? client.specs.cpu_percent.toFixed(1) + '%' : '-';
+                document.getElementById('ramTotal').textContent = client.specs.memory_total ? formatBytes(client.specs.memory_total) : '-';
+                document.getElementById('ramAvailable').textContent = client.specs.memory_available ? formatBytes(client.specs.memory_available) : '-';
+            }
+        }
 
-    window.onhashchange = () => {
-      const cid = location.hash.slice(1);
-      const overviewEl = document.getElementById("overview");
-      const detailEl   = document.getElementById("detail");
-      if (cid) {
-        overviewEl.classList.add("hidden");
-        detailEl.classList.remove("hidden");
-        initDetail(cid);
-      } else {
-        detailEl.classList.add("hidden");
-        overviewEl.classList.remove("hidden");
-        if (adminWs) adminWs.close();
-      }
-    };
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
 
-    async function initDetail(cid){
-      document.getElementById("cid").textContent = cid;
-      document.getElementById("console").textContent = "";
-      setupWS(cid);
-      await loadSpecs(cid);
-    }
+        function switchTab(tabName) {
+            // Alle Tabs deaktivieren
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            // Aktiven Tab aktivieren
+            event.target.classList.add('active');
+            document.getElementById(tabName + 'Tab').classList.add('active');
+        }
 
-    // Spezifikationen laden
-    async function loadSpecs(cid){
-      try {
-        const res = await fetch(ENDPOINT);
-        const { online, offline, backlog } = await res.json();
-        const all = [...online, ...offline, ...backlog];
-        const c = all.find(x => x.id === cid);
-        if (!c) return;
-        const info = c.info || {};
-        document.getElementById("sp-public").textContent  = c.public_ip;
-        document.getElementById("sp-private").textContent = c.private_ip;
-        document.getElementById("sp-os").textContent      = info.os || "";
-        document.getElementById("sp-cpu").textContent     = info.cpu_percent || "";
-        document.getElementById("sp-ram").textContent     = `${info.ram_used||""}/${info.ram_total||""}`;
-        document.getElementById("sp-disk").textContent    = `${info.disk_used||""}/${info.disk_total||""}`;
-        document.getElementById("sp-net").textContent     = c.network;
-      } catch (e) {
-        console.error("Fehler beim Laden der Specs:", e);
-      }
-    }
+        function sendControlMessage(action, data = {}) {
+            if (!selectedClient || !ws || ws.readyState !== WebSocket.OPEN) {
+                console.error('Kein Client ausgewählt oder WebSocket nicht verbunden');
+                return;
+            }
 
-    // WebSocket einrichten
-    function setupWS(cid){
-      adminWs = new WebSocket((location.protocol==="https:"?"wss":"ws")+`://${location.host}/ws/admin`);
-      adminWs.onopen = () => console.log("Admin WS verbunden");
-      adminWs.onmessage = ev => {
-        const text = ev.data + "\n";
-        document.getElementById("console").textContent += text;
-        document.querySelectorAll(".tab").forEach((tab,i)=>{
-          if (tab.classList.contains("active")) {
-            document.getElementById(`content-${i}`).textContent += text;
-          }
+            const client = clients[selectedClient];
+            const message = {
+                type: 'control_client',
+                session_id: client.session_id,
+                action: action,
+                ...data
+            };
+
+            ws.send(JSON.stringify(message));
+        }
+
+        function startScreenShare() {
+            sendControlMessage('start_screen_share');
+            screenShareActive = true;
+            document.getElementById('screenPlaceholder').style.display = 'none';
+            document.getElementById('screenImage').style.display = 'block';
+        }
+
+        function stopScreenShare() {
+            sendControlMessage('stop_screen_share');
+            screenShareActive = false;
+            document.getElementById('screenPlaceholder').style.display = 'flex';
+            document.getElementById('screenImage').style.display = 'none';
+        }
+
+        function updateScreenShare(data) {
+            if (screenShareActive && data.session_id === clients[selectedClient]?.session_id) {
+                const screenImage = document.getElementById('screenImage');
+                screenImage.src = 'data:image/jpeg;base64,' + data.image;
+            }
+        }
+
+        function executeCommand() {
+            const input = document.getElementById('cmdInput');
+            const command = input.value.trim();
+            
+            if (!command) return;
+            
+            // Befehl in Terminal anzeigen
+            const output = document.getElementById('cmdOutput');
+            output.innerHTML += `<span style="color: #00ff88;">$ ${command}</span><br>`;
+            
+            sendControlMessage('cmd_execute', { command: command });
+            
+            input.value = '';
+        }
+
+        function handleCmdKeyPress(event) {
+            if (event.key === 'Enter') {
+                executeCommand();
+            }
+        }
+
+        function displayCommandResult(data) {
+            if (data.session_id !== clients[selectedClient]?.session_id) return;
+            
+            const output = document.getElementById('cmdOutput');
+            
+            if (data.error) {
+                output.innerHTML += `<span style="color: #ff4444;">Fehler: ${data.error}</span><br>`;
+            } else {
+                if (data.stdout) {
+                    output.innerHTML += data.stdout.replace(/\n/g, '<br>');
+                }
+                if (data.stderr) {
+                    output.innerHTML += `<span style="color: #ff4444;">${data.stderr.replace(/\n/g, '<br>')}</span>`;
+                }
+            }
+            
+            output.innerHTML += '<br>';
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function refreshProcesses() {
+            sendControlMessage('get_processes');
+        }
+
+        function updateProcessList(processes) {
+            const processList = document.getElementById('processList');
+            processList.innerHTML = '';
+            
+            processes.forEach(proc => {
+                const processElement = document.createElement('div');
+                processElement.className = 'process-item';
+                processElement.innerHTML = `
+                    <div>${proc.pid}</div>
+                    <div>${proc.name}</div>
+                    <div>${proc.cpu_percent ? proc.cpu_percent.toFixed(1) + '%' : '0%'}</div>
+                    <div>${formatBytes(proc.memory)}</div>
+                    <div><button class="kill-btn" onclick="killProcess(${proc.pid})">Kill</button></div>
+                `;
+                processList.appendChild(processElement);
+            });
+        }
+
+        function killProcess(pid) {
+            if (confirm(`Prozess mit PID ${pid} beenden?`)) {
+                sendControlMessage('kill_process', { pid: pid });
+            }
+        }
+
+        function handleProcessKilled(data) {
+            if (data.success) {
+                console.log(`Prozess ${data.pid} erfolgreich beendet`);
+                refreshProcesses(); // Liste aktualisieren
+            } else {
+                alert(`Fehler beim Beenden des Prozesses: ${data.error}`);
+            }
+        }
+
+        function disconnectClient() {
+            if (confirm('Client-Verbindung trennen?')) {
+                // Hier könntest du eine Nachricht an den Server senden, um den Client zu trennen
+                console.log('Client trennen funktionalität hier implementieren');
+            }
+        }
+
+        // Maus-Events für Screen Share
+        document.getElementById('screenImage').addEventListener('click', function(event) {
+            if (!screenShareActive) return;
+            
+            const rect = this.getBoundingClientRect();
+            const x = Math.round((event.clientX - rect.left) * (this.naturalWidth / rect.width));
+            const y = Math.round((event.clientY - rect.top) * (this.naturalHeight / rect.height));
+            
+            sendControlMessage('mouse_control', {
+                action: 'click',
+                x: x,
+                y: y
+            });
         });
-      };
-      adminWs.onclose = () => console.log("Admin WS getrennt");
-    }
 
-    // Konsole: Befehl senden
-    document.getElementById("send").onclick = () => {
-      const cmd = document.getElementById("cmd").value.trim();
-      const cid = location.hash.slice(1);
-      if (cmd && adminWs) {
-        adminWs.send(JSON.stringify({ target: cid, cmd }));
-        document.getElementById("cmd").value = "";
-      }
-    };
+        document.getElementById('screenImage').addEventListener('contextmenu', function(event) {
+            event.preventDefault();
+            if (!screenShareActive) return;
+            
+            const rect = this.getBoundingClientRect();
+            const x = Math.round((event.clientX - rect.left) * (this.naturalWidth / rect.width));
+            const y = Math.round((event.clientY - rect.top) * (this.naturalHeight / rect.height));
+            
+            sendControlMessage('mouse_control', {
+                action: 'right_click',
+                x: x,
+                y: y
+            });
+        });
 
-    // Taskmanager Modal
-    document.getElementById("tm-btn").onclick = () => {
-      document.getElementById("overlay").classList.remove("hidden");
-      document.getElementById("tm-modal").classList.remove("hidden");
-      document.querySelector(".tab.active").click();
-    };
-    document.getElementById("tm-close").onclick = () => {
-      document.getElementById("overlay").classList.add("hidden");
-      document.getElementById("tm-modal").classList.add("hidden");
-    };
-    document.querySelectorAll(".tab").forEach((tab,i) => {
-      tab.onclick = () => {
-        document.querySelectorAll(".tab").forEach(t => t.classList.remove("active", "text-blue-600"));
-        document.querySelectorAll(".tab-content").forEach(c => c.classList.add("hidden"));
-        tab.classList.add("active", "text-blue-600");
-        const contentEl = document.getElementById(`content-${i}`);
-        contentEl.classList.remove("hidden");
-        contentEl.textContent = "";
-        const cid = location.hash.slice(1);
-        if (adminWs) adminWs.send(JSON.stringify({ target: cid, cmd: tab.dataset.cmd }));
-      };
-    });
+        document.getElementById('screenImage').addEventListener('dblclick', function(event) {
+            if (!screenShareActive) return;
+            
+            const rect = this.getBoundingClientRect();
+            const x = Math.round((event.clientX - rect.left) * (this.naturalWidth / rect.width));
+            const y = Math.round((event.clientY - rect.top) * (this.naturalHeight / rect.height));
+            
+            sendControlMessage('mouse_control', {
+                action: 'double_click',
+                x: x,
+                y: y
+            });
+        });
 
-    // Init Übersicht
-    fetchClients();
-    setInterval(fetchClients, 30000);
-    window.onhashchange();  // initial
+        document.getElementById('screenImage').addEventListener('mousemove', function(event) {
+            if (!screenShareActive) return;
+            
+            const rect = this.getBoundingClientRect();
+            const x = Math.round((event.clientX - rect.left) * (this.naturalWidth / rect.width));
+            const y = Math.round((event.clientY - rect.top) * (this.naturalHeight / rect.height));
+            
+            sendControlMessage('mouse_control', {
+                action: 'move',
+                x: x,
+                y: y
+            });
+        });
 
-  </script>
+        // Tastatur-Events für Screen Share
+        document.addEventListener('keydown', function(event) {
+            if (!screenShareActive || document.activeElement.tagName === 'INPUT') return;
+            
+            event.preventDefault();
+            
+            // Spezielle Tasten behandeln
+            let keyToSend = event.key;
+            
+            if (event.ctrlKey && event.key === 'c') {
+                sendControlMessage('keyboard_control', {
+                    action: 'hotkey',
+                    keys: ['ctrl', 'c']
+                });
+                return;
+            }
+            
+            if (event.ctrlKey && event.key === 'v') {
+                sendControlMessage('keyboard_control', {
+                    action: 'hotkey',
+                    keys: ['ctrl', 'v']
+                });
+                return;
+            }
+            
+            if (keyToSend.length === 1) {
+                sendControlMessage('keyboard_control', {
+                    action: 'type',
+                    text: keyToSend
+                });
+            } else {
+                sendControlMessage('keyboard_control', {
+                    action: 'press',
+                    key: keyToSend.toLowerCase()
+                });
+            }
+        });
+
+        // Beim Laden der Seite WebSocket verbinden
+        window.addEventListener('load', function() {
+            connectWebSocket();
+        });
+    </script>
 </body>
 </html>
