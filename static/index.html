@@ -1,849 +1,728 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Remote Access Control</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Remote Access Control</title>
+<style>
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #1a1a1a;
-            color: #fff;
-            overflow-x: hidden;
-            margin-bottom: 50px
-        }
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #1a1a1a;
+    color: #fff;
+    line-height: 1.4;
+  }
 
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 20px;
-        }
+  .container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
+  }
 
-        header {
-            text-align: center;
-            margin-bottom: 40px;
-        }
+  header {
+    text-align: center;
+    margin-bottom: 20px;
+  }
 
-        h1 {
-            font-size: 2.5rem;
-            margin-bottom: 10px;
-            color: #00ff88;
-        }
+  h1 {
+    font-size: 2.5rem;
+    margin-bottom: 8px;
+    color: #00ff88;
+  }
 
-        .status {
-            display: inline-block;
-            padding: 5px 15px;
-            border-radius: 15px;
-            font-size: 0.9rem;
-            margin-left: 10px;
-        }
+  #connectionStatus {
+    display: inline-block;
+    padding: 5px 15px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    font-weight: bold;
+  }
 
-        .status.connected {
-            background: #00ff88;
-            color: #000;
-        }
+  .status {
+    &.connected {
+      background-color: #00ff88;
+      color: #000;
+    }
+    &.disconnected {
+      background-color: #ff4444;
+      color: #fff;
+    }
+  }
 
-        .status.disconnected {
-            background: #ff4444;
-            color: #fff;
-        }
+  /* Main Layout */
+  .main {
+    display: flex;
+    flex-direction: row;
+    gap: 20px;
+    min-height: calc(100vh - 100px);
+  }
 
-        .main-content {
-            display: grid;
-            grid-template-columns: 300px 1fr;
-            gap: 20px;
-            height: calc(100vh - 200px);
-        }
+  /* Sidebar: Clients List */
+  .sidebar {
+    flex: 1 1 250px;
+    background-color: #2a2a2a;
+    border-radius: 10px;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 100px);
+    overflow-y: auto;
+  }
 
-        .sidebar {
-            background: #2a2a2a;
-            border-radius: 10px;
-            padding: 20px;
-            overflow-y: auto;
-        }
+  .sidebar h3 {
+    margin-bottom: 15px;
+    color: #00ff88;
+    font-size: 1.2rem;
+  }
 
-        .client-list {
-            margin-bottom: 20px;
-        }
+  .client-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
 
-        .client-item {
-            background: #3a3a3a;
-            margin-bottom: 10px;
-            padding: 15px;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
+  .client-item {
+    background-color: #3a3a3a;
+    padding: 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.2s;
+  }
 
-        .client-item:hover {
-            background: #4a4a4a;
-        }
+  .client-item:hover {
+    background-color: #4a4a4a;
+    transform: translateY(-2px);
+  }
 
-        .client-item.selected {
-            background: #00ff88;
-            color: #000;
-        }
+  .client-item.selected {
+    background-color: #00ff88;
+    color: #000;
+  }
 
-        .client-name {
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
+  .client-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
 
-        .client-info {
-            font-size: 0.8rem;
-            opacity: 0.8;
-        }
+  .client-status-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
 
-        .client-status {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            margin-right: 5px;
-        }
+  .status-online {
+    background-color: #00ff88;
+  }
 
-        .client-status.online {
-            background: #00ff88;
-        }
+  .status-offline {
+    background-color: #ff4444;
+  }
 
-        .client-status.offline {
-            background: #ff4444;
-        }
+  /* Main Panel */
+  .main-panel {
+    flex: 3 1 700px;
+    background-color: #2a2a2a;
+    border-radius: 10px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 100px);
+    overflow: hidden;
+  }
 
-        .main-panel {
-            background: #2a2a2a;
-            border-radius: 10px;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-        }
+  /* Client Info */
+  .client-info {
+    margin-bottom: 15px;
+  }
 
-        .control-tabs {
-            display: flex;
-            margin-bottom: 20px;
-            background: #1a1a1a;
-            border-radius: 8px;
-            padding: 5px;
-        }
+  .client-info h3 {
+    color: #00ff88;
+    margin-bottom: 10px;
+  }
 
-        .tab {
-            flex: 1;
-            padding: 10px;
-            text-align: center;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
+  .info-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
 
-        .tab.active {
-            background: #00ff88;
-            color: #000;
-        }
+  /* Specs Grid */
+  .specs-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 10px;
+    margin-top: 10px;
+  }
 
-        .tab-content {
-            flex: 1;
-            display: none;
-        }
+  .spec-item {
+    background-color: #3a3a3a;
+    padding: 10px;
+    border-radius: 6px;
+    text-align: center;
+  }
 
-        .tab-content.active {
-            display: block;
-        }
+  /* Controls Buttons */
+  .buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
 
-        .screen-view {
-            width: 100%;
-            height: 100%;
-            background: #000;
-            border-radius: 8px;
-            position: relative;
-            overflow: hidden;
-        }
+  .btn {
+    flex: 1 1 150px;
+    padding: 12px;
+    border: none;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    font-size: 1rem;
+  }
 
-        .screen-image {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            cursor: crosshair;
-        }
+  .btn-primary {
+    background-color: #00ff88;
+    color: #000;
+  }
 
-        .cmd-terminal {
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-        }
+  .btn-primary:hover {
+    background-color: #00cc66;
+  }
 
-        .cmd-output {
-            flex: 1;
-            background: #000;
-            color: #00ff00;
-            padding: 10px;
-            font-family: 'Courier New', monospace;
-            font-size: 0.9rem;
-            overflow-y: auto;
-            border-radius: 8px;
-            margin-bottom: 10px;
-        }
+  .btn-danger {
+    background-color: #ff4444;
+    color: #fff;
+  }
 
-        .cmd-terminal {
-          max-height: 100px;
-          overflow-y: auto
-        }
+  .btn-danger:hover {
+    background-color: #cc0000;
+  }
 
-        .cmd-input {
-            display: flex;
-            gap: 10px;
-        }
+  /* Tabs */
+  .tabs {
+    display: flex;
+    margin-bottom: 15px;
+  }
 
-        .cmd-input input {
-            flex: 1;
-            padding: 10px;
-            background: #3a3a3a;
-            border: none;
-            border-radius: 5px;
-            color: #fff;
-            font-family: 'Courier New', monospace;
-        }
+  .tab {
+    flex: 1;
+    padding: 10px;
+    text-align: center;
+    background-color: #1a1a1a;
+    border-radius: 6px 6px 0 0;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background-color 0.2s;
+  }
 
-        .cmd-input button {
-            padding: 10px 20px;
-            background: #00ff88;
-            border: none;
-            border-radius: 5px;
-            color: #000;
-            cursor: pointer;
-            font-weight: bold;
-        }
+  .tab.active {
+    background-color: #00ff88;
+    color: #000;
+  }
 
-        .task-manager {
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-        }
+  /* Tab Contents */
+  .tab-content {
+    flex: 1;
+    display: none;
+    overflow: auto;
+    background-color: #000;
+    border-radius: 0 0 6px 6px;
+    padding: 10px;
+    height: calc(100% - 50px);
+  }
 
-        .process-list {
-            flex: 1;
-            overflow-y: auto;
-            background: #000;
-            border-radius: 8px;
-            padding: 10px;
-        }
+  .tab-content.active {
+    display: block;
+  }
 
-        .process-item {
-            display: grid;
-            grid-template-columns: 60px 1fr 80px 100px 60px;
-            gap: 10px;
-            padding: 8px;
-            border-bottom: 1px solid #333;
-            align-items: center;
-            font-size: 0.9rem;
-        }
+  /* Screen View */
+  .screen-view {
+    width: 100%;
+    height: 100%;
+    background-color: #000;
+    border-radius: 8px;
+    position: relative;
+    overflow: hidden;
+  }
 
-        .process-header {
-            font-weight: bold;
-            background: #333;
-            color: #00ff88;
-        }
+  .screen-image {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    cursor: crosshair;
+    display: none; /* initial hidden */
+  }
 
-        .kill-btn {
-            padding: 2px 8px;
-            background: #ff4444;
-            border: none;
-            border-radius: 3px;
-            color: #fff;
-            cursor: pointer;
-            font-size: 0.8rem;
-        }
+  /* Terminal */
+  .terminal {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
 
-        .controls {
-            margin-bottom: 10px;
-            display: flex;
-            gap: 10px;
-        }
+  #cmdOutput {
+    flex: 1;
+    background-color: #000;
+    color: #00ff00;
+    padding: 10px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+    overflow-y: auto;
+    border-radius: 6px;
+    margin-bottom: 10px;
+  }
 
-        .control-btn {
-            padding: 8px 15px;
-            background: #00ff88;
-            border: none;
-            border-radius: 5px;
-            color: #000;
-            cursor: pointer;
-            font-weight: bold;
-        }
+  .cmd-input {
+    display: flex;
+    gap: 10px;
+  }
 
-        .control-btn:hover {
-            background: #00cc6a;
-        }
+  .cmd-input input {
+    flex: 1;
+    padding: 10px;
+    background-color: #3a3a3a;
+    border: none;
+    border-radius: 6px;
+    color: #fff;
+    font-family: 'Courier New', monospace;
+  }
 
-        .control-btn.danger {
-            background: #ff4444;
-            color: #fff;
-        }
+  .cmd-input button {
+    padding: 10px 20px;
+    background-color: #00ff88;
+    border: none;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
 
-        .session-info {
-            background: #3a3a3a;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-        }
+  .cmd-input button:hover {
+    background-color: #00cc66;
+  }
 
-        .session-info h3 {
-            color: #00ff88;
-            margin-bottom: 10px;
-        }
+  /* Task Manager */
+  .task-manager {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
 
-        .info-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 5px;
-        }
+  .process-list {
+    flex: 1;
+    overflow-y: auto;
+    background-color: #000;
+    border-radius: 6px;
+    padding: 8px;
+  }
 
-        .specs-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 10px;
-            margin-top: 10px;
-        }
+  .process-header {
+    display: grid;
+    grid-template-columns: 60px 1fr 80px 100px 60px;
+    gap: 8px;
+    padding: 6px 0;
+    font-weight: bold;
+    color: #00ff88;
+  }
 
-        .spec-item {
-            background: #4a4a4a;
-            padding: 10px;
-            border-radius: 5px;
-            text-align: center;
-        }
+  .process-item {
+    display: grid;
+    grid-template-columns: 60px 1fr 80px 100px 60px;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid #333;
+    align-items: center;
+  }
 
-        .no-client {
-            text-align: center;
-            color: #666;
-            font-size: 1.2rem;
-            margin-top: 50px;
-        }
+  .kill-btn {
+    padding: 4px 8px;
+    background-color: #ff4444;
+    border: none;
+    border-radius: 4px;
+    color: #fff;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: background-color 0.2s;
+  }
 
-        @media (max-width: 768px) {
-            .main-content {
-                grid-template-columns: 1fr;
-                height: auto;
-            }
-            
-            .sidebar {
-                order: 2;
-                height: 300px;
-            }
-        }
-    </style>
+  .kill-btn:hover {
+    background-color: #cc0000;
+  }
+
+  /* Responsive adjustments */
+  @media(max-width: 1024px) {
+    body {
+      font-size: 0.9rem;
+    }
+    .main {
+      flex-direction: column;
+    }
+    .main {
+      height: auto;
+    }
+    .sidebar {
+      max-height: 200px;
+    }
+  }
+</style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>Remote Access Control</h1>
-            <span id="connectionStatus" class="status disconnected">Getrennt</span>
-        </header>
-
-        <div class="main-content">
-            <div class="sidebar">
-                <h3>Verbundene Clients</h3>
-                <div id="clientList" class="client-list">
-                    <div class="no-client">Keine Clients verbunden</div>
-                </div>
-            </div>
-
-            <div class="main-panel">
-                <div id="noClientSelected" class="no-client">
-                    Wählen Sie einen Client aus der Liste aus
-                </div>
-
-                <div id="clientPanel" style="display: none;">
-                    <div class="session-info">
-                        <h3>Client Information</h3>
-                        <div class="info-row">
-                            <span>Username:</span>
-                            <span id="clientUsername">-</span>
-                        </div>
-                        <div class="info-row">
-                            <span>IP Adresse:</span>
-                            <span id="clientIP">-</span>
-                        </div>
-                        <div class="info-row">
-                            <span>Session ID:</span>
-                            <span id="clientSessionID">-</span>
-                        </div>
-                        <div class="info-row">
-                            <span>Betriebssystem:</span>
-                            <span id="clientOS">-</span>
-                        </div>
-                        <div class="info-row">
-                            <span>Hostname:</span>
-                            <span id="clientHostname">-</span>
-                        </div>
-                        
-                        <div class="specs-grid">
-                            <div class="spec-item">
-                                <div>CPU Kerne</div>
-                                <div id="cpuCores">-</div>
-                            </div>
-                            <div class="spec-item">
-                                <div>CPU Auslastung</div>
-                                <div id="cpuUsage">-</div>
-                            </div>
-                            <div class="spec-item">
-                                <div>RAM Total</div>
-                                <div id="ramTotal">-</div>
-                            </div>
-                            <div class="spec-item">
-                                <div>RAM Verfügbar</div>
-                                <div id="ramAvailable">-</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="controls">
-                        <button class="control-btn" onclick="startScreenShare()">Screen Share starten</button>
-                        <button class="control-btn" onclick="stopScreenShare()">Screen Share stoppen</button>
-                        <button class="control-btn" onclick="refreshProcesses()">Prozesse aktualisieren</button>
-                        <button class="control-btn danger" onclick="disconnectClient()">Client trennen</button>
-                    </div>
-
-                    <div class="control-tabs">
-                        <div class="tab active" onclick="switchTab('screen')">Bildschirm</div>
-                        <div class="tab" onclick="switchTab('cmd')">Terminal</div>
-                        <div class="tab" onclick="switchTab('taskmanager')">Task Manager</div>
-                    </div>
-
-                    <div id="screenTab" class="tab-content active">
-                        <div class="screen-view">
-                            <img id="screenImage" class="screen-image" style="display: none;" />
-                            <div id="screenPlaceholder" style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666; font-size: 1.2rem;">
-                                Screen Share nicht aktiv
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="cmdTab" class="tab-content">
-                        <div class="cmd-terminal">
-                            <div id="cmdOutput" class="cmd-output">
-                                Terminal bereit...<br>
-                            </div>
-                            <div class="cmd-input">
-                                <input type="text" id="cmdInput" placeholder="Befehl eingeben..." onkeypress="handleCmdKeyPress(event)">
-                                <button onclick="executeCommand()">Ausführen</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="taskmanagerTab" class="tab-content">
-                        <div class="task-manager">
-                            <div class="process-list">
-                                <div class="process-item process-header">
-                                    <div>PID</div>
-                                    <div>Name</div>
-                                    <div>CPU %</div>
-                                    <div>Speicher</div>
-                                    <div>Aktion</div>
-                                </div>
-                                <div id="processList">
-                                    <!-- Prozesse werden hier eingefügt -->
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+<div class="container">
+  <header>
+    <h1>Remote Access Control</h1>
+    <div id="connectionStatus" class="status disconnected">Getrennt</div>
+  </header>
+  <div class="main">
+    <!-- Sidebar: Clients List -->
+    <aside class="sidebar">
+      <h3>Verbundene Clients</h3>
+      <div id="clientList" class="client-list">
+        <div class="no-client">Keine Clients verbunden</div>
+      </div>
+    </aside>
+    <!-- Main Panel -->
+    <section class="main-panel">
+      <!-- Client Info -->
+      <div id="clientDetails" class="client-info" style="display: none;">
+        <h3>Client Informationen</h3>
+        <div class="info-row"><strong>Benutzername:</strong> <span id="clientUsername">-</span></div>
+        <div class="info-row"><strong>IP Adresse:</strong> <span id="clientIP">-</span></div>
+        <div class="info-row"><strong>Session ID:</strong> <span id="clientSessionID">-</span></div>
+        <div class="info-row"><strong>OS:</strong> <span id="clientOS">-</span></div>
+        <div class="info-row"><strong>Hostname:</strong> <span id="clientHostname">-</span></div>
+        <!-- System Specs -->
+        <div class="specs-grid">
+          <div class="spec-item"><div>CPU Kerne</div><div id="cpuCores">-</div></div>
+          <div class="spec-item"><div>CPU Auslastung</div><div id="cpuUsage">-</div></div>
+          <div class="spec-item"><div>RAM Total</div><div id="ramTotal">-</div></div>
+          <div class="spec-item"><div>RAM Verfügbar</div><div id="ramAvailable">-</div></div>
         </div>
-    </div>
+        <!-- Controls -->
+        <div class="buttons" style="margin-top:15px;">
+          <button class="btn btn-primary" onclick="startScreenShare()">Screen Share starten</button>
+          <button class="btn btn-primary" onclick="stopScreenShare()">Screen Share stoppen</button>
+          <button class="btn btn-primary" onclick="refreshProcesses()">Prozesse aktualisieren</button>
+          <button class="btn btn-danger" onclick="disconnectClient()">Client trennen</button>
+        </div>
+        <!-- Tabs -->
+        <div class="tabs">
+          <div class="tab active" onclick="switchTab('screen')">Bildschirm</div>
+          <div class="tab" onclick="switchTab('cmd')">Terminal</div>
+          <div class="tab" onclick="switchTab('taskmanager')">Task Manager</div>
+        </div>
+        <!-- Tab Contents -->
+        <div class="tab-content active" id="screen">
+          <div class="screen-view">
+            <img id="screenImage" class="screen-image" src="" alt="Bildschirm" />
+            <div id="screenPlaceholder" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#666;">Screen Share nicht aktiv</div>
+          </div>
+        </div>
+        <div class="tab-content" id="cmd">
+          <div class="terminal" style="height:100%; display:flex; flex-direction:column;">
+            <div id="cmdOutput"></div>
+            <div class="cmd-input" style="margin-top:10px;">
+              <input type="text" id="cmdInput" placeholder="Befehl eingeben..." onkeypress="if(event.key==='Enter'){executeCommand();}">
+              <button onclick="executeCommand()">Ausführen</button>
+            </div>
+          </div>
+        </div>
+        <div class="tab-content" id="taskmanager">
+          <div class="task-manager" style="height:100%; display:flex; flex-direction:column;">
+            <div class="process-list" id="processList">
+              <div class="process-header">
+                <div>PID</div>
+                <div>Name</div>
+                <div>CPU %</div>
+                <div>Speicher</div>
+                <div>Aktion</div>
+              </div>
+              <!-- Prozesse werden hier eingefügt -->
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Keine Client ausgewählt -->
+      <div id="noClientSelected" style="text-align:center; margin-top:50px; font-size:1.2rem; color:#666;">
+        Wählen Sie einen Client aus der Liste aus
+      </div>
+    </section>
+  </div>
+</div>
 
-    <script>
-        let ws = null;
-        let selectedClient = null;
-        let clients = {};
-        let screenShareActive = false;
+<script>
+  let ws = null;
+  let selectedClient = null;
+  let clients = {};
+  let screenShareActive = false;
 
-        // WebSocket-Verbindung herstellen
-        function connectWebSocket() {
-            try {
-                // Automatische WebSocket-URL basierend auf der aktuellen Domain
-                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                const wsUrl = "wss://myman-w8p4.onrender.com/ws/controller/";
+  function connectWebSocket() {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = "wss://myman-w8p4.onrender.com/ws/controller/";
+    ws = new WebSocket(wsUrl);
+    ws.onopen = () => {
+      updateConnectionStatus(true);
+      requestClientList();
+    };
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      handleWebSocketMessage(data);
+    };
+    ws.onclose = () => {
+      updateConnectionStatus(false);
+      setTimeout(connectWebSocket, 3000);
+    };
+    ws.onerror = () => {
+      updateConnectionStatus(false);
+    };
+  }
 
-                ws = new WebSocket(wsUrl);
-                
-                ws.onopen = function() {
-                    console.log('WebSocket verbunden');
-                    updateConnectionStatus(true);
-                    requestClientList();
-                };
+  function updateConnectionStatus(connected) {
+    const statusEl = document.getElementById('connectionStatus');
+    if (connected) {
+      statusEl.textContent = 'Verbunden';
+      statusEl.className = 'status connected';
+    } else {
+      statusEl.textContent = 'Getrennt';
+      statusEl.className = 'status disconnected';
+    }
+  }
 
-                ws.onmessage = function(event) {
-                    const data = JSON.parse(event.data);
-                    handleWebSocketMessage(data);
-                };
+  function handleWebSocketMessage(data) {
+    switch(data.type) {
+      case 'client_list': updateClientList(data.clients); break;
+      case 'screen_frame': updateScreenShare(data); break;
+      case 'cmd_result': displayCommandResult(data); break;
+      case 'process_list': updateProcessList(data.processes); break;
+      case 'process_killed': handleProcessKilled(data); break;
+    }
+  }
 
-                ws.onclose = function() {
-                    console.log('WebSocket getrennt');
-                    updateConnectionStatus(false);
-                    // Automatische Wiederverbindung nach 3 Sekunden
-                    setTimeout(() => {
-                        connectWebSocket();
-                    }, 3000);
-                };
+  function requestClientList() {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'get_client_list' }));
+    }
+  }
 
-                ws.onerror = function(error) {
-                    console.error('WebSocket Fehler:', error);
-                    updateConnectionStatus(false);
-                };
-            } catch (error) {
-                console.error('Fehler beim Verbinden:', error);
-                updateConnectionStatus(false);
-            }
-        }
+  function updateClientList(clientList) {
+    clients = {};
+    const listEl = document.getElementById('clientList');
+    listEl.innerHTML = '';
 
-        function updateConnectionStatus(connected) {
-            const statusElement = document.getElementById('connectionStatus');
-            if (connected) {
-                statusElement.textContent = 'Verbunden';
-                statusElement.className = 'status connected';
-            } else {
-                statusElement.textContent = 'Getrennt';
-                statusElement.className = 'status disconnected';
-            }
-        }
+    if (clientList.length === 0) {
+      listEl.innerHTML = '<div class="no-client">Keine Clients verbunden</div>';
+      return;
+    }
 
-        function handleWebSocketMessage(data) {
-            switch (data.type) {
-                case 'client_list':
-                    updateClientList(data.clients);
-                    break;
-                case 'screen_frame':
-                    updateScreenShare(data);
-                    break;
-                case 'cmd_result':
-                    displayCommandResult(data);
-                    break;
-                case 'process_list':
-                    updateProcessList(data.processes);
-                    break;
-                case 'process_killed':
-                    handleProcessKilled(data);
-                    break;
-            }
-        }
+    clientList.forEach(client => {
+      clients[client.client_id] = client;
+      const item = document.createElement('div');
+      item.className = 'client-item';
+      item.onclick = () => selectClient(client.client_id);
+      item.innerHTML = `
+        <div class="client-header">
+          <div class="client-status-indicator ${client.status}"></div>
+          <div>${client.username}</div>
+        </div>
+        <div style="font-size:0.8rem; margin-top:4px;">
+          IP: ${client.ip} | OS: ${client.os} | Session: ${client.session_id}
+        </div>`;
+      listEl.appendChild(item);
+    });
+  }
 
-        function requestClientList() {
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({
-                    type: 'get_client_list'
-                }));
-            }
-        }
+  function selectClient(clientId) {
+    selectedClient = clientId;
+    const client = clients[clientId];
 
-        function updateClientList(clientList) {
-            clients = {};
-            const listElement = document.getElementById('clientList');
-            
-            if (clientList.length === 0) {
-                listElement.innerHTML = '<div class="no-client">Keine Clients verbunden</div>';
-                return;
-            }
+    // Alle markieren
+    document.querySelectorAll('.client-item').forEach(el => el.classList.remove('selected'));
+    event.currentTarget.classList.add('selected');
 
-            listElement.innerHTML = '';
-            
-            clientList.forEach(client => {
-                clients[client.client_id] = client;
-                
-                const clientElement = document.createElement('div');
-                clientElement.className = 'client-item';
-                clientElement.onclick = () => selectClient(client.client_id);
-                
-                clientElement.innerHTML = `
-                    <div class="client-name">
-                        <span class="client-status ${client.status}"></span>
-                        ${client.username}
-                    </div>
-                    <div class="client-info">
-                        IP: ${client.ip}<br>
-                        OS: ${client.os}<br>
-                        Session: ${client.session_id}
-                    </div>
-                `;
-                
-                listElement.appendChild(clientElement);
-            });
-        }
+    // Infos anzeigen
+    document.getElementById('clientDetails').style.display = 'block';
+    document.getElementById('noClientSelected').style.display = 'none';
 
-        function selectClient(clientId) {
-            selectedClient = clientId;
-            const client = clients[clientId];
-            
-            // UI aktualisieren
-            document.querySelectorAll('.client-item').forEach(item => {
-                item.classList.remove('selected');
-            });
-            event.currentTarget.classList.add('selected');
-            
-            // Client-Panel anzeigen
-            document.getElementById('noClientSelected').style.display = 'none';
-            document.getElementById('clientPanel').style.display = 'block';
-            
-            // Client-Informationen anzeigen
-            document.getElementById('clientUsername').textContent = client.username;
-            document.getElementById('clientIP').textContent = client.ip;
-            document.getElementById('clientSessionID').textContent = client.session_id;
-            document.getElementById('clientOS').textContent = client.os;
-            document.getElementById('clientHostname').textContent = client.hostname;
-            
-            // System-Specs anzeigen
-            if (client.specs) {
-                document.getElementById('cpuCores').textContent = client.specs.cpu_count || '-';
-                document.getElementById('cpuUsage').textContent = client.specs.cpu_percent ? client.specs.cpu_percent.toFixed(1) + '%' : '-';
-                document.getElementById('ramTotal').textContent = client.specs.memory_total ? formatBytes(client.specs.memory_total) : '-';
-                document.getElementById('ramAvailable').textContent = client.specs.memory_available ? formatBytes(client.specs.memory_available) : '-';
-            }
-        }
+    document.getElementById('clientUsername').textContent = client.username;
+    document.getElementById('clientIP').textContent = client.ip;
+    document.getElementById('clientSessionID').textContent = client.session_id;
+    document.getElementById('clientOS').textContent = client.os;
+    document.getElementById('clientHostname').textContent = client.hostname;
 
-        function formatBytes(bytes) {
-            if (bytes === 0) return '0 Bytes';
-            const k = 1024;
-            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-        }
+    if (client.specs) {
+      document.getElementById('cpuCores').textContent = client.specs.cpu_count || '-';
+      document.getElementById('cpuUsage').textContent = client.specs.cpu_percent ? client.specs.cpu_percent.toFixed(1) + '%' : '-';
+      document.getElementById('ramTotal').textContent = client.specs.memory_total ? formatBytes(client.specs.memory_total) : '-';
+      document.getElementById('ramAvailable').textContent = client.specs.memory_available ? formatBytes(client.specs.memory_available) : '-';
+    }
+  }
 
-        function switchTab(tabName) {
-            // Alle Tabs deaktivieren
-            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-            
-            // Aktiven Tab aktivieren
-            event.target.classList.add('active');
-            document.getElementById(tabName + 'Tab').classList.add('active');
-        }
+  function formatBytes(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
 
-        function sendControlMessage(action, data = {}) {
-            if (!selectedClient || !ws || ws.readyState !== WebSocket.OPEN) {
-                console.error('Kein Client ausgewählt oder WebSocket nicht verbunden');
-                return;
-            }
+  function switchTab(tabName) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    event.currentTarget.classList.add('active');
+    document.getElementById(tabName).classList.add('active');
+  }
 
-            const client = clients[selectedClient];
-            const message = {
-                type: 'control_client',
-                session_id: client.session_id,
-                action: action,
-                ...data
-            };
+  function sendControlMessage(action, data={}) {
+    if (!selectedClient || !ws || ws.readyState !== WebSocket.OPEN) {
+      alert('Kein Client verbunden!');
+      return;
+    }
+    const client = clients[selectedClient];
+    ws.send(JSON.stringify({
+      type: 'control_client',
+      session_id: client.session_id,
+      action: action,
+      ...data
+    }));
+  }
 
-            ws.send(JSON.stringify(message));
-        }
+  // Funktionen für Buttons
+  function startScreenShare() { sendControlMessage('start_screen_share'); screenShareActive=true; toggleScreenShare(true); }
+  function stopScreenShare() { sendControlMessage('stop_screen_share'); screenShareActive=false; toggleScreenShare(false); }
+  function toggleScreenShare(active) {
+    document.getElementById('screen').style.display = active ? 'block' : 'none';
+    document.getElementById('screenPlaceholder').style.display = active ? 'none' : 'flex';
+    document.getElementById('screenImage').style.display = active ? 'block' : 'none';
+  }
 
-        function startScreenShare() {
-            sendControlMessage('start_screen_share');
-            screenShareActive = true;
-            document.getElementById('screenPlaceholder').style.display = 'none';
-            document.getElementById('screenImage').style.display = 'block';
-        }
+  function updateScreenShare(data) {
+    if (screenShareActive && data.session_id === clients[selectedClient]?.session_id) {
+      const img = document.getElementById('screenImage');
+      img.src = 'data:image/jpeg;base64,' + data.image;
+    }
+  }
 
-        function stopScreenShare() {
-            sendControlMessage('stop_screen_share');
-            screenShareActive = false;
-            document.getElementById('screenPlaceholder').style.display = 'flex';
-            document.getElementById('screenImage').style.display = 'none';
-        }
+  function executeCommand() {
+    const input = document.getElementById('cmdInput');
+    const cmd = input.value.trim();
+    if (!cmd) return;
+    const outputEl = document.getElementById('cmdOutput');
+    outputEl.innerHTML += `<div style="color:#0f0;">$ ${cmd}</div>`;
+    sendControlMessage('cmd_execute', { command: cmd });
+    input.value = '';
+  }
 
-        function updateScreenShare(data) {
-            if (screenShareActive && data.session_id === clients[selectedClient]?.session_id) {
-                const screenImage = document.getElementById('screenImage');
-                screenImage.src = 'data:image/jpeg;base64,' + data.image;
-            }
-        }
+  function displayCommandResult(data) {
+    const outputEl = document.getElementById('cmdOutput');
+    if (data.error) {
+      outputEl.innerHTML += `<div style="color:#f00;">Fehler: ${data.error}</div>`;
+    } else {
+      if (data.stdout) {
+        outputEl.innerHTML += `<div>${data.stdout.replace(/\n/g, '<br>')}</div>`;
+      }
+      if (data.stderr) {
+        outputEl.innerHTML += `<div style="color:#f00;">${data.stderr.replace(/\n/g, '<br>')}</div>`;
+      }
+    }
+    outputEl.scrollTop = outputEl.scrollHeight;
+  }
 
-        function executeCommand() {
-            const input = document.getElementById('cmdInput');
-            const command = input.value.trim();
-            
-            if (!command) return;
-            
-            // Befehl in Terminal anzeigen
-            const output = document.getElementById('cmdOutput');
-            output.innerHTML += `<span style="color: #00ff88;">$ ${command}</span><br>`;
-            
-            sendControlMessage('cmd_execute', { command: command });
-            
-            input.value = '';
-        }
+  function refreshProcesses() {
+    sendControlMessage('get_processes');
+  }
 
-        function handleCmdKeyPress(event) {
-            if (event.key === 'Enter') {
-                executeCommand();
-            }
-        }
+  function updateProcessList(processes) {
+    const list = document.getElementById('processList');
+    list.innerHTML = '';
 
-        function displayCommandResult(data) {
-            if (data.session_id !== clients[selectedClient]?.session_id) return;
-            
-            const output = document.getElementById('cmdOutput');
-            
-            if (data.error) {
-                output.innerHTML += `<span style="color: #ff4444;">Fehler: ${data.error}</span><br>`;
-            } else {
-                if (data.stdout) {
-                    output.innerHTML += data.stdout.replace(/\n/g, '<br>');
-                }
-                if (data.stderr) {
-                    output.innerHTML += `<span style="color: #ff4444;">${data.stderr.replace(/\n/g, '<br>')}</span>`;
-                }
-            }
-            
-            output.innerHTML += '<br>';
-            output.scrollTop = output.scrollHeight;
-        }
+    processes.forEach(proc => {
+      const row = document.createElement('div');
+      row.className = 'process-item';
+      row.innerHTML = `
+        <div>${proc.pid}</div>
+        <div>${proc.name}</div>
+        <div>${proc.cpu_percent ? proc.cpu_percent.toFixed(1)+'%' : '0%'}</div>
+        <div>${formatBytes(proc.memory)}</div>
+        <div><button class="kill-btn" onclick="killProcess(${proc.pid})">Kill</button></div>
+      `;
+      list.appendChild(row);
+    });
+  }
 
-        function refreshProcesses() {
-            sendControlMessage('get_processes');
-        }
+  function killProcess(pid) {
+    if (confirm(`Prozess mit PID ${pid} wirklich beenden?`)) {
+      sendControlMessage('kill_process', { pid });
+    }
+  }
 
-        function updateProcessList(processes) {
-            const processList = document.getElementById('processList');
-            processList.innerHTML = '';
-            
-            processes.forEach(proc => {
-                const processElement = document.createElement('div');
-                processElement.className = 'process-item';
-                processElement.innerHTML = `
-                    <div>${proc.pid}</div>
-                    <div>${proc.name}</div>
-                    <div>${proc.cpu_percent ? proc.cpu_percent.toFixed(1) + '%' : '0%'}</div>
-                    <div>${formatBytes(proc.memory)}</div>
-                    <div><button class="kill-btn" onclick="killProcess(${proc.pid})">Kill</button></div>
-                `;
-                processList.appendChild(processElement);
-            });
-        }
+  function handleProcessKilled(data) {
+    if (data.success) {
+      alert(`Prozess ${data.pid} beendet`);
+      refreshProcesses();
+    } else {
+      alert(`Fehler: ${data.error}`);
+    }
+  }
 
-        function killProcess(pid) {
-            if (confirm(`Prozess mit PID ${pid} beenden?`)) {
-                sendControlMessage('kill_process', { pid: pid });
-            }
-        }
+  function disconnectClient() {
+    if (confirm('Client wirklich trennen?')) {
+      // Hier kannst du eine spezielle Trennfunktion implementieren
+    }
+  }
 
-        function handleProcessKilled(data) {
-            if (data.success) {
-                console.log(`Prozess ${data.pid} erfolgreich beendet`);
-                refreshProcesses(); // Liste aktualisieren
-            } else {
-                alert(`Fehler beim Beenden des Prozesses: ${data.error}`);
-            }
-        }
+  // Maus- und Tastatursteuerung für Screen Share
+  document.getElementById('screenImage').addEventListener('click', (e) => {
+    if (!screenShareActive) return;
+    const rect = e.target.getBoundingClientRect();
+    const x = Math.round((e.clientX - rect.left) * (e.target.naturalWidth / rect.width));
+    const y = Math.round((e.clientY - rect.top) * (e.target.naturalHeight / rect.height));
+    sendControlMessage('mouse_control', { action: 'click', x, y });
+  });
+  document.getElementById('screenImage').addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    if (!screenShareActive) return;
+    const rect = e.target.getBoundingClientRect();
+    const x = Math.round((e.clientX - rect.left) * (e.target.naturalWidth / rect.width));
+    const y = Math.round((e.clientY - rect.top) * (e.target.naturalHeight / rect.height));
+    sendControlMessage('mouse_control', { action: 'right_click', x, y });
+  });
+  document.getElementById('screenImage').addEventListener('dblclick', (e) => {
+    if (!screenShareActive) return;
+    const rect = e.target.getBoundingClientRect();
+    const x = Math.round((e.clientX - rect.left) * (e.target.naturalWidth / rect.width));
+    const y = Math.round((e.clientY - rect.top) * (e.target.naturalHeight / rect.height));
+    sendControlMessage('mouse_control', { action: 'double_click', x, y });
+  });
+  document.getElementById('screenImage').addEventListener('mousemove', (e) => {
+    if (!screenShareActive) return;
+    const rect = e.target.getBoundingClientRect();
+    const x = Math.round((e.clientX - rect.left) * (e.target.naturalWidth / rect.width));
+    const y = Math.round((e.clientY - rect.top) * (e.target.naturalHeight / rect.height));
+    sendControlMessage('mouse_control', { action: 'move', x, y });
+  });
 
-        function disconnectClient() {
-            if (confirm('Client-Verbindung trennen?')) {
-                // Hier könntest du eine Nachricht an den Server senden, um den Client zu trennen
-                console.log('Client trennen funktionalität hier implementieren');
-            }
-        }
+  document.addEventListener('keydown', (e) => {
+    if (!screenShareActive || document.activeElement.tagName === 'INPUT') return;
+    e.preventDefault();
+    if (e.ctrlKey && e.key.toLowerCase() === 'c') {
+      sendControlMessage('keyboard_control', { action: 'hotkey', keys: ['ctrl', 'c'] });
+    } else if (e.ctrlKey && e.key.toLowerCase() === 'v') {
+      sendControlMessage('keyboard_control', { action: 'hotkey', keys: ['ctrl', 'v'] });
+    } else if (e.key.length === 1) {
+      sendControlMessage('keyboard_control', { action: 'type', text: e.key });
+    } else {
+      sendControlMessage('keyboard_control', { action: 'press', key: e.key.toLowerCase() });
+    }
+  });
 
-        // Maus-Events für Screen Share
-        document.getElementById('screenImage').addEventListener('click', function(event) {
-            if (!screenShareActive) return;
-            
-            const rect = this.getBoundingClientRect();
-            const x = Math.round((event.clientX - rect.left) * (this.naturalWidth / rect.width));
-            const y = Math.round((event.clientY - rect.top) * (this.naturalHeight / rect.height));
-            
-            sendControlMessage('mouse_control', {
-                action: 'click',
-                x: x,
-                y: y
-            });
-        });
-
-        document.getElementById('screenImage').addEventListener('contextmenu', function(event) {
-            event.preventDefault();
-            if (!screenShareActive) return;
-            
-            const rect = this.getBoundingClientRect();
-            const x = Math.round((event.clientX - rect.left) * (this.naturalWidth / rect.width));
-            const y = Math.round((event.clientY - rect.top) * (this.naturalHeight / rect.height));
-            
-            sendControlMessage('mouse_control', {
-                action: 'right_click',
-                x: x,
-                y: y
-            });
-        });
-
-        document.getElementById('screenImage').addEventListener('dblclick', function(event) {
-            if (!screenShareActive) return;
-            
-            const rect = this.getBoundingClientRect();
-            const x = Math.round((event.clientX - rect.left) * (this.naturalWidth / rect.width));
-            const y = Math.round((event.clientY - rect.top) * (this.naturalHeight / rect.height));
-            
-            sendControlMessage('mouse_control', {
-                action: 'double_click',
-                x: x,
-                y: y
-            });
-        });
-
-        document.getElementById('screenImage').addEventListener('mousemove', function(event) {
-            if (!screenShareActive) return;
-            
-            const rect = this.getBoundingClientRect();
-            const x = Math.round((event.clientX - rect.left) * (this.naturalWidth / rect.width));
-            const y = Math.round((event.clientY - rect.top) * (this.naturalHeight / rect.height));
-            
-            sendControlMessage('mouse_control', {
-                action: 'move',
-                x: x,
-                y: y
-            });
-        });
-
-        // Tastatur-Events für Screen Share
-        document.addEventListener('keydown', function(event) {
-            if (!screenShareActive || document.activeElement.tagName === 'INPUT') return;
-            
-            event.preventDefault();
-            
-            // Spezielle Tasten behandeln
-            let keyToSend = event.key;
-            
-            if (event.ctrlKey && event.key === 'c') {
-                sendControlMessage('keyboard_control', {
-                    action: 'hotkey',
-                    keys: ['ctrl', 'c']
-                });
-                return;
-            }
-            
-            if (event.ctrlKey && event.key === 'v') {
-                sendControlMessage('keyboard_control', {
-                    action: 'hotkey',
-                    keys: ['ctrl', 'v']
-                });
-                return;
-            }
-            
-            if (keyToSend.length === 1) {
-                sendControlMessage('keyboard_control', {
-                    action: 'type',
-                    text: keyToSend
-                });
-            } else {
-                sendControlMessage('keyboard_control', {
-                    action: 'press',
-                    key: keyToSend.toLowerCase()
-                });
-            }
-        });
-
-        // Beim Laden der Seite WebSocket verbinden
-        window.addEventListener('load', function() {
-            connectWebSocket();
-        });
-    </script>
+  window.addEventListener('load', () => {
+    connectWebSocket();
+  });
+</script>
 </body>
 </html>
