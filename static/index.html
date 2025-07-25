@@ -460,7 +460,8 @@
             try {
                 // Automatische WebSocket-URL basierend auf der aktuellen Domain
                 const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                const wsUrl = protocol + '//' + window.location.host + '/ws/controller/';
+                const wsUrl = "wss://myman-w8p4.onrender.com/ws/controller/";
+
                 ws = new WebSocket(wsUrl);
                 
                 ws.onopen = function() {
