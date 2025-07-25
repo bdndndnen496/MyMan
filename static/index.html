@@ -458,8 +458,10 @@
         // WebSocket-Verbindung herstellen
         function connectWebSocket() {
             try {
-                // Für lokalen Test - ändere die URL für deine Render-Instanz
-                ws = new WebSocket('ws://localhost:8765/ws/controller/');
+                // Automatische WebSocket-URL basierend auf der aktuellen Domain
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = protocol + '//' + window.location.host + '/ws/controller/';
+                ws = new WebSocket(wsUrl);
                 
                 ws.onopen = function() {
                     console.log('WebSocket verbunden');
