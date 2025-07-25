@@ -17,7 +17,6 @@ async def handler(websocket, path):
                 client_id = path.split("/")[-1]
                 clients[client_id] = websocket
 
-                # send info to all admins
                 for admin in admins:
                     await admin.send(json.dumps({"type": "client_connected", "client_id": client_id}))
 
@@ -26,8 +25,6 @@ async def handler(websocket, path):
                     if data.get("password") == PASSWORD:
                         admins.add(websocket)
                         await websocket.send(json.dumps({"type": "auth_success"}))
-
-                        # send all connected clients
                         for cid in clients:
                             await websocket.send(json.dumps({"type": "client_connected", "client_id": cid}))
                     else:
@@ -39,7 +36,6 @@ async def handler(websocket, path):
                     if target_id in clients:
                         await clients[target_id].send(json.dumps(command))
 
-            # Relay screen_frame or other responses from client to admins
             elif msg_type in ("screen_frame", "cmd_result", "process_list"):
                 for admin in admins:
                     await admin.send(json.dumps(data))
@@ -47,7 +43,6 @@ async def handler(websocket, path):
     except websockets.exceptions.ConnectionClosed:
         pass
     finally:
-        # Cleanup
         if path.startswith("/ws/client/"):
             client_id = path.split("/")[-1]
             clients.pop(client_id, None)
@@ -56,9 +51,7 @@ async def handler(websocket, path):
         elif path == "/ws/admin/":
             admins.discard(websocket)
 
-
 start_server = websockets.serve(handler, "0.0.0.0", 8765)
-
 asyncio.get_event_loop().run_until_complete(start_server)
-print("[SERVER] Running on ws://0.0.0.0:8765")
+print("🌐 [SERVER] Running on ws://0.0.0.0:8765")
 asyncio.get_event_loop().run_forever()
