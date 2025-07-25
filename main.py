@@ -1,79 +1,64 @@
-import os
+import asyncio
+import websockets
 import json
-import time
-import uuid
-from dotenv import load_dotenv
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse
-from fastapi.middleware.cors import CORSMiddleware
-
-load_dotenv()
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "default123")
-
-app = FastAPI()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 clients = {}  # client_id -> websocket
-client_infos = {}  # client_id -> info
-admins = set()
+admins = set()  # all connected admin websockets
 
-@app.get("/")
-async def root():
-    return HTMLResponse("Remote Server is running.")
+PASSWORD = "supersecurepassword"
 
-@app.websocket("/ws/client/")
-async def client_socket(ws: WebSocket):
-    await ws.accept()
-    client_id = str(uuid.uuid4())
-    clients[client_id] = ws
-    print(f"[Client Connected] {client_id}")
-
+async def handler(websocket, path):
     try:
-        while True:
-            data = await ws.receive_text()
-            message = json.loads(data)
-            message["client_id"] = client_id
+        async for message in websocket:
+            data = json.loads(message)
+            msg_type = data.get("type")
 
-            if message["type"] == "client_info":
-                client_infos[client_id] = message
+            if path.startswith("/ws/client/"):
+                client_id = path.split("/")[-1]
+                clients[client_id] = websocket
 
-            for admin_ws in admins:
-                await admin_ws.send_text(json.dumps(message))
-    except WebSocketDisconnect:
-        print(f"[Client Disconnected] {client_id}")
+                # send info to all admins
+                for admin in admins:
+                    await admin.send(json.dumps({"type": "client_connected", "client_id": client_id}))
+
+            elif path == "/ws/admin/":
+                if msg_type == "auth":
+                    if data.get("password") == PASSWORD:
+                        admins.add(websocket)
+                        await websocket.send(json.dumps({"type": "auth_success"}))
+
+                        # send all connected clients
+                        for cid in clients:
+                            await websocket.send(json.dumps({"type": "client_connected", "client_id": cid}))
+                    else:
+                        await websocket.send(json.dumps({"type": "auth_failed"}))
+                        await websocket.close()
+                elif msg_type == "command":
+                    target_id = data.get("target")
+                    command = data.get("command")
+                    if target_id in clients:
+                        await clients[target_id].send(json.dumps(command))
+
+            # Relay screen_frame or other responses from client to admins
+            elif msg_type in ("screen_frame", "cmd_result", "process_list"):
+                for admin in admins:
+                    await admin.send(json.dumps(data))
+
+    except websockets.exceptions.ConnectionClosed:
+        pass
     finally:
-        clients.pop(client_id, None)
-        client_infos.pop(client_id, None)
+        # Cleanup
+        if path.startswith("/ws/client/"):
+            client_id = path.split("/")[-1]
+            clients.pop(client_id, None)
+            for admin in admins:
+                await admin.send(json.dumps({"type": "client_disconnected", "client_id": client_id}))
+        elif path == "/ws/admin/":
+            admins.discard(websocket)
 
-@app.websocket("/ws/admin/")
-async def admin_socket(ws: WebSocket):
-    await ws.accept()
-    try:
-        auth = await ws.receive_text()
-        msg = json.loads(auth)
-        if msg.get("type") != "auth" or msg.get("password") != ADMIN_PASSWORD:
-            await ws.send_text(json.dumps({"type": "auth_failed"}))
-            await ws.close()
-            return
 
-        await ws.send_text(json.dumps({"type": "auth_success"}))
-        admins.add(ws)
-        print("[Admin Connected]")
+start_server = websockets.serve(handler, "0.0.0.0", 8765)
 
-        while True:
-            data = await ws.receive_text()
-            msg = json.loads(data)
-
-            if msg["type"] == "command":
-                target = msg.get("target")
-                if target in clients:
-                    await clients[target].send(json.dumps(msg["command"]))
-    except WebSocketDisconnect:
-        print("[Admin Disconnected]")
-    finally:
-        admins.discard(ws)
+asyncio.get_event_loop().run_until_complete(start_server)
+print("[SERVER] Running on ws://0.0.0.0:8765")
+asyncio.get_event_loop().run_forever()
